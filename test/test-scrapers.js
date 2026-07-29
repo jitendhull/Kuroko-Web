@@ -18,14 +18,25 @@ async function runTests() {
 
   // Detect if local proxy is running to route tests through it (bypassing Cloudflare)
   let useProxy = false;
+  let proxyPort = 8000;
   try {
-    const checkRes = await fetch('http://127.0.0.1:3000/');
+    const checkRes = await fetch('http://127.0.0.1:8000/');
     if (checkRes.status === 200) {
       useProxy = true;
-      console.log('ℹ️ Local proxy detected on port 3000. Routing scraper tests through proxy.');
+      proxyPort = 8000;
+      console.log('ℹ️ Local proxy detected on port 8000. Routing scraper tests through proxy.');
     }
   } catch (_) {
-    console.log('ℹ️ Local proxy not detected. Running tests directly (may fail Cloudflare blocks).');
+    try {
+      const checkRes = await fetch('http://127.0.0.1:3000/');
+      if (checkRes.status === 200) {
+        useProxy = true;
+        proxyPort = 3000;
+        console.log('ℹ️ Local proxy detected on port 3000. Routing scraper tests through proxy.');
+      }
+    } catch (__) {
+      console.log('ℹ️ Local proxy not detected. Running tests directly (may fail Cloudflare blocks).');
+    }
   }
 
   if (useProxy) {
@@ -45,7 +56,7 @@ async function runTests() {
             }
           }
         }
-        targetUrl = `http://127.0.0.1:3000/proxy?url=${encodeURIComponent(url)}${referer ? '&referer=' + encodeURIComponent(referer) : ''}`;
+        targetUrl = `http://127.0.0.1:${proxyPort}/proxy?url=${encodeURIComponent(url)}${referer ? '&referer=' + encodeURIComponent(referer) : ''}`;
       }
       return fetch(targetUrl, options);
     });

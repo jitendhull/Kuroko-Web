@@ -411,12 +411,12 @@ export const Miruro = {
 
   async getEpisodes(anilistId, fetchOptions = {}) {
     const e = encodePipeRequest('episodes', { anilistId: String(anilistId) });
-    const url = `https://www.${this.domain}/api/secure/pipe?e=${e}`;
+    const url = `http://localhost:8000/api/secure/pipe?e=${e}`;
 
     const res = await httpFetch(url, {
       headers: {
-        'Referer': `https://www.${this.domain}/`,
-        'Origin': `https://www.${this.domain}`
+        'Referer': `https://www.miruro.ru/`,
+        'Origin': `https://www.miruro.ru`
       },
       ...fetchOptions
     });
@@ -440,12 +440,12 @@ export const Miruro = {
       provider,
       category
     });
-    const url = `https://www.${this.domain}/api/secure/pipe?e=${e}`;
+    const url = `http://localhost:8000/api/secure/pipe?e=${e}`;
 
     const res = await httpFetch(url, {
       headers: {
-        'Referer': `https://www.${this.domain}/`,
-        'Origin': `https://www.${this.domain}`
+        'Referer': `https://www.miruro.ru/`,
+        'Origin': `https://www.miruro.ru`
       },
       ...fetchOptions
     });

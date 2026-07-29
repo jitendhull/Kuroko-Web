@@ -382,7 +382,7 @@
         metaProvider: 'anilist',
         selectedScraper: 'animepahe',
         isDub: false,
-        corsProxy: 'http://localhost:3000/proxy?url=',
+        corsProxy: 'http://localhost:8000/proxy?url=',
         useIframe: false,
         iframeUrl: '',
 
@@ -645,8 +645,8 @@
         async playNative(playerType) {
           if (!this.streamUrl) return;
           const firstSub = this.subtitles?.[0]?.src || '';
-          const localSubUrl = firstSub ? `http://localhost:3000/proxy?url=${encodeURIComponent(firstSub)}` : '';
-          const url = `http://localhost:3000/play-native?player=${playerType}&url=${encodeURIComponent(this.streamUrl)}&referer=${encodeURIComponent(this.streamReferer)}&sub=${encodeURIComponent(localSubUrl)}`;
+          const localSubUrl = firstSub ? `http://localhost:8000/proxy?url=${encodeURIComponent(firstSub)}` : '';
+          const url = `http://localhost:8000/play-native?player=${playerType}&url=${encodeURIComponent(this.streamUrl)}&referer=${encodeURIComponent(this.streamReferer)}&sub=${encodeURIComponent(localSubUrl)}`;
           try {
             const res = await fetch(url);
             const json = await res.json();
