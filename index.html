@@ -21,6 +21,11 @@
       border-radius: 12px;
       overflow: hidden;
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+      width: 100% !important;
+      height: 100% !important;
+    }
+    .plyr__video-wrapper {
+      height: 100% !important;
     }
     .custom-scroll::-webkit-scrollbar {
       width: 6px;
@@ -130,7 +135,7 @@
                x-model="corsProxy"
                placeholder="Proxy URL..."
                class="w-full bg-zinc-900 border border-zinc-800 rounded-lg py-1.5 px-3 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-indigo-500">
-        <p class="text-[10px] text-zinc-500 mt-1">Appends target url to end. Set empty for direct calls.</p>
+        <p class="text-[10px] text-zinc-500 mt-1">Appends target url. Set empty if using a CORS extension. (Note: Miruro/Kwik require direct connection or Userscripts/GM_xmlhttpRequest to bypass Cloudflare blocks).</p>
       </div>
 
       <!-- Scraper configuration -->
@@ -175,7 +180,7 @@
         <!-- Search Results Grid -->
         <div x-show="!loading && !selectedAnime" class="flex-grow">
           <h2 class="text-lg font-bold text-zinc-300 mb-4" x-text="searchQuery ? `Search Results for '${searchQuery}'` : 'Trending / Recommended'"></h2>
-          <div id="results-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div id="results-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
             <template x-for="(anime, idx) in searchResults" :key="anime.id || anime.idMal">
               <div @click="selectAnime(anime)"
                    class="anime-card group bg-zinc-900 border border-zinc-800/60 rounded-xl overflow-hidden cursor-pointer hover:border-zinc-700 transition-all duration-300 flex flex-col">
@@ -190,10 +195,10 @@
                   </div>
                 </div>
                 <!-- Title & info -->
-                <div class="p-3 flex-grow flex flex-col justify-between">
+                <div class="p-2 flex-grow flex flex-col justify-between">
                   <h3 x-text="anime.title.english || anime.title.romaji"
-                      class="text-sm font-semibold line-clamp-2 text-zinc-100 group-hover:text-indigo-400 transition-colors"></h3>
-                  <div class="flex justify-between items-center mt-2 text-[11px] text-zinc-500">
+                      class="text-xs font-semibold line-clamp-2 text-zinc-100 group-hover:text-indigo-400 transition-colors"></h3>
+                  <div class="flex justify-between items-center mt-2 text-[10px] text-zinc-500">
                     <span x-text="anime.seasonYear || 'N/A'"></span>
                     <span x-text="anime.episodes ? `${anime.episodes} EPS` : 'Airing'"></span>
                   </div>
@@ -450,7 +455,7 @@
               // Sort candidates by match score
               const scored = candidates.map(c => ({
                 ...c,
-                score: window.M3Scrape.calculateMatchScore(this.selectedAnime, c.slug.split('-').join(' '), this.selectedAnime.seasonYear, this.selectedAnime.format)
+                score: window.M3Scrape.calculateMatchScore(this.selectedAnime, c.slug, null, null)
               })).sort((a, b) => b.score - a.score);
 
               const bestMatch = scored[0];
@@ -466,7 +471,7 @@
 
               const scored = candidates.map(c => ({
                 ...c,
-                score: window.M3Scrape.calculateMatchScore(this.selectedAnime, c.name || c.slug.split('-').join(' '), this.selectedAnime.seasonYear, this.selectedAnime.type)
+                score: window.M3Scrape.calculateMatchScore(this.selectedAnime, c.title_en || c.title || c.slug, c.year, c.type)
               })).sort((a, b) => b.score - a.score);
 
               const bestMatch = scored[0];
@@ -568,18 +573,14 @@
           });
 
           // Setup Hls.js or Native streaming
+          const proxiedUrl = this.corsProxy ? `${this.corsProxy}${encodeURIComponent(url)}` : url;
           if (Hls.isSupported() && url.includes('.m3u8')) {
-            const hls = new Hls({
-              xhrSetup: (xhr) => {
-                // If standard fetch, referer header can't be set by client-side browser,
-                // but if using a proxy, the proxy parses or injects it.
-              }
-            });
-            hls.loadSource(url);
+            const hls = new Hls();
+            hls.loadSource(proxiedUrl);
             hls.attachMedia(video);
             window.hls = hls;
           } else {
-            video.src = url;
+            video.src = proxiedUrl;
           }
 
           // Initialize Plyr

@@ -175,6 +175,25 @@ async function runTests() {
     console.warn('⚠️ KickAss scraper request failed (possibly network):', err.message);
   }
 
+  // Test 7: KickAss One Punch Man Season 1 Check
+  console.log('\n--- Test 7: KickAss One Punch Man Check ---');
+  try {
+    const results = await KickAss.search('One Punch Man');
+    const mainResult = results.find(r => r.slug === 'one-punch-man-fff4') || results[0];
+    console.log(`   Best match: slug=${mainResult.slug}`);
+
+    const epData = await KickAss.getEpisodes(mainResult.slug, false);
+    console.log(`   Total episodes: ${epData.episodes.length}`);
+    assert.strictEqual(epData.episodes.length, 12);
+
+    const firstEp = epData.episodes[0];
+    console.log(`   First episode number: ${firstEp.episode_number}`);
+    assert.strictEqual(parseInt(firstEp.episode_number, 10), 1);
+    console.log('✅ KickAss OPM S1 checks passed (First episode starts at 1, total episodes = 12).');
+  } catch (err) {
+    console.warn('⚠️ KickAss OPM S1 check failed:', err.message);
+  }
+
   console.log('\n=== All Tests Finished ===');
 }
 

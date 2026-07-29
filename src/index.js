@@ -192,6 +192,29 @@ export function calculateMatchScore(media, itemTitleOrSlug, itemYear, itemType) 
   return bestScore;
 }
 
+// Dean Edwards Packer decompressor
+function unpack(packed) {
+  const match = packed.match(/}\s*\(\s*['"](.*?)['"]\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*['"](.*?)['"]\.split\('\|'\)/);
+  if (!match) return null;
+  let [_, p, a, c, k] = match;
+  a = parseInt(a, 10);
+  c = parseInt(c, 10);
+  k = k.split('|');
+
+  const e = function(c) {
+    return (c < a ? '' : e(parseInt(c / a, 10))) + ((c = c % a) > 35 ? String.fromCharCode(c + 29) : c.toString(36));
+  };
+
+  let d = {};
+  while (c--) {
+    d[e(c)] = k[c] || e(c);
+  }
+
+  return p.replace(/\b\w+\b/g, function(w) {
+    return d[w] || w;
+  });
+}
+
 // Decompress base64url gzip strings
 async function gunzip(base64Data) {
   let b64 = base64Data.replace(/-/g, '+').replace(/_/g, '/');
@@ -518,42 +541,100 @@ export const AnimePahe = {
       if (name === 'status') continue;
       if (name.toLowerCase().includes('kiwi')) {
         const info = isDub ? entry.dub : entry.sub;
-        if (info && info.url) {
+        if (info && (info.url || info.download)) {
           streamInfo = info;
           break;
         }
       }
     }
 
-    if (!streamInfo || !streamInfo.url) {
-      throw new Error(`Kiwi ${isDub ? 'dub' : 'sub'} stream URL not found`);
+    if (!streamInfo) {
+      throw new Error(`Kiwi ${isDub ? 'dub' : 'sub'} stream info not found`);
     }
 
-    const serverUrl = `https://${this.domain}/ajax/server?get=${encodeURIComponent(streamInfo.url)}`;
-    const serverRes = await httpFetch(serverUrl, {
-      headers: {
-        'X-Requested-With': 'XMLHttpRequest',
-        'Referer': `https://${this.domain}/`
-      },
-      ...fetchOptions
-    });
+    let streamUrl = null;
+    const download = streamInfo.download || null;
 
-    const serverJson = await serverRes.json();
-    const embedUrl = serverJson?.result?.url;
-    if (!embedUrl) {
-      throw new Error('Failed to resolve server embed URL');
+    if (streamInfo.url) {
+      const serverUrl = `https://${this.domain}/ajax/server?get=${encodeURIComponent(streamInfo.url)}`;
+      const serverRes = await httpFetch(serverUrl, {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Referer': `https://${this.domain}/`
+        },
+        ...fetchOptions
+      });
+
+      const serverJson = await serverRes.json();
+      const embedUrl = serverJson?.result?.url;
+      if (!embedUrl) {
+        throw new Error('Failed to resolve server embed URL');
+      }
+
+      const hashMatch = embedUrl.split('#')[1];
+      if (!hashMatch) {
+        throw new Error('Hash fragment not found in embed URL');
+      }
+
+      streamUrl = atob(hashMatch.split('?')[0]);
+    } else if (streamInfo.download) {
+      const downloadUrls = Object.values(streamInfo.download);
+      if (downloadUrls.length === 0) {
+        throw new Error('No download URLs found for fallback');
+      }
+      const downloadPageUrl = downloadUrls[0];
+
+      // Fetch download page to get worker redirect
+      const dlRes = await httpFetch(downloadPageUrl, fetchOptions);
+      const dlHtml = await dlRes.text();
+
+      const token = downloadPageUrl.split('/').filter(Boolean).pop();
+      const workerUrl = `https://proud-dew-d754.download992.workers.dev/${token}`;
+      const workerRes = await httpFetch(workerUrl, fetchOptions);
+
+      const redirectUrl = workerRes.url || workerRes.headers.get('location');
+      if (!redirectUrl) {
+        throw new Error('Failed to resolve worker redirect URL');
+      }
+
+      // Replace /f/ with /e/ to get embed page
+      const kwikEmbedUrl = redirectUrl.replace('/f/', '/e/');
+
+      // Fetch kwik page and unpack
+      const kwikRes = await httpFetch(kwikEmbedUrl, {
+        headers: {
+          'Referer': 'https://pahe.nekostream.site/'
+        },
+        ...fetchOptions
+      });
+      const kwikHtml = await kwikRes.text();
+
+      const scriptMatch = kwikHtml.match(/eval\s*\(\s*function\s*\(p\s*,\s*a\s*,\s*c\s*,\s*k\s*,\s*e\s*,\s*d\s*\)[\s\S]*?\)\s*\)/);
+      if (!scriptMatch) {
+        throw new Error('Packed stream script not found in Kwik HTML');
+      }
+
+      const unpacked = unpack(scriptMatch[0]);
+      if (!unpacked) {
+        throw new Error('Failed to unpack Kwik stream script');
+      }
+
+      const m3u8Match = unpacked.match(/https?:\/\/[^"']+\.m3u8[^"']*/i);
+      if (!m3u8Match) {
+        throw new Error('m3u8 stream URL not found in Kwik script');
+      }
+
+      streamUrl = m3u8Match[0];
     }
 
-    const hashMatch = embedUrl.split('#')[1];
-    if (!hashMatch) {
-      throw new Error('Hash fragment not found in embed URL');
+    if (!streamUrl) {
+      throw new Error(`Kiwi ${isDub ? 'dub' : 'sub'} stream URL not resolved`);
     }
 
-    const streamUrl = atob(hashMatch.split('?')[0]);
     return {
       streamUrl,
       referer: 'https://kwik.cx/',
-      download: streamInfo.download || null
+      download
     };
   }
 };
