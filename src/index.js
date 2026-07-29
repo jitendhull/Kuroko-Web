@@ -93,7 +93,15 @@ export function normalizeSlug(slug) {
 /**
  * Compare media metadata to matched site result.
  */
-export function calculateMatchScore(media, itemTitle, itemYear, itemType) {
+export function calculateMatchScore(media, itemTitleOrSlug, itemYear, itemType) {
+  // Normalize item slug (strip trailing hash like -c6fbj or -cp7ym)
+  const slug = itemTitleOrSlug.toLowerCase()
+    .replace(/-[a-z0-9]{4,6}$/, '') // strip trailing hash
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
   const titles = [
     media.title.english,
     media.title.romaji,
@@ -102,25 +110,77 @@ export function calculateMatchScore(media, itemTitle, itemYear, itemType) {
   ].filter(Boolean);
 
   let bestScore = 0;
-  const targetTitleNorm = normalizeTitle(itemTitle);
+  const spinoffWords = ['mini', 'marumaru', 'special', 'specials', 'ova', 'movie', 'recap', 'picture', 'drama'];
 
   for (const t of titles) {
-    const candidateNorm = normalizeTitle(t);
-    if (!candidateNorm || !targetTitleNorm) continue;
+    // Primary slug
+    const keywordSlug = t.toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
 
-    if (candidateNorm === targetTitleNorm) {
-      bestScore = Math.max(bestScore, 100);
-    } else if (candidateNorm.startsWith(targetTitleNorm) || targetTitleNorm.startsWith(candidateNorm)) {
-      bestScore = Math.max(bestScore, 85);
-    } else if (candidateNorm.includes(targetTitleNorm) || targetTitleNorm.includes(candidateNorm)) {
-      bestScore = Math.max(bestScore, 70);
+    // Alternate slug with expanded apostrophe
+    const keywordSlugAlt = t.toLowerCase()
+      .replace(/[‘’'′`´‵]/g, '-')
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    const slugs = [keywordSlug, keywordSlugAlt];
+
+    for (const kwSlug of slugs) {
+      if (!kwSlug || !slug) continue;
+      let score = 0;
+
+      if (slug === kwSlug) {
+        score = 1000;
+      } else if (slug.startsWith(kwSlug + '-') || slug.startsWith(kwSlug)) {
+        const extraLength = slug.length - kwSlug.length;
+        score = 900 - (extraLength * 3);
+        if (score < 500) score = 500;
+      } else if (kwSlug.startsWith(slug + '-') || kwSlug.startsWith(slug)) {
+        const extraLength = kwSlug.length - slug.length;
+        score = 700 - (extraLength * 2);
+        if (score < 400) score = 400;
+      } else if (slug.split('-').join(' ').includes(kwSlug.split('-').join(' '))) {
+        score = 300;
+      } else {
+        const kwWords = kwSlug.split('-');
+        const slugWords = slug.split('-');
+        let matchedWords = 0;
+        for (const w of kwWords) {
+          if (w.length >= 3 && slugWords.includes(w)) matchedWords++;
+        }
+        if (kwWords.length > 0 && matchedWords > 0) {
+          score = Math.round(200 * (matchedWords / kwWords.length));
+        }
+      }
+
+      // Spinoff penalties
+      if (score >= 500 && score < 900) {
+        const slugWords = slug.split('-');
+        for (const sw of spinoffWords) {
+          if (slugWords.includes(sw)) {
+            score -= 200;
+            break;
+          }
+        }
+        // Season mismatches
+        if (!kwSlug.includes('season') && slug.includes('season-')) {
+          score -= 100;
+        }
+      }
+
+      bestScore = Math.max(bestScore, score);
     }
   }
 
+  // Format and Year bonus can be added on top
   if (media.seasonYear && itemYear && parseInt(media.seasonYear, 10) === parseInt(itemYear, 10)) {
     bestScore += 8;
   }
-
   if (media.format && itemType) {
     const fmt = media.format.toLowerCase();
     const typ = itemType.toLowerCase();
