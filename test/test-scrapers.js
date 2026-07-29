@@ -8,11 +8,48 @@ import M3Scrape, {
   MAL,
   Miruro,
   AnimePahe,
-  KickAss
+  KickAss,
+  setFetch,
+  httpFetch
 } from '../src/index.js';
 
 async function runTests() {
   console.log('=== Running m3-scrape Tests ===\n');
+
+  // Detect if local proxy is running to route tests through it (bypassing Cloudflare)
+  let useProxy = false;
+  try {
+    const checkRes = await fetch('http://127.0.0.1:3000/');
+    if (checkRes.status === 200) {
+      useProxy = true;
+      console.log('ℹ️ Local proxy detected on port 3000. Routing scraper tests through proxy.');
+    }
+  } catch (_) {
+    console.log('ℹ️ Local proxy not detected. Running tests directly (may fail Cloudflare blocks).');
+  }
+
+  if (useProxy) {
+    setFetch(async (url, options = {}) => {
+      let targetUrl = url;
+      if (!url.includes('graphql.anilist.co') && !url.includes('api.jikan.moe')) {
+        let referer = '';
+        if (options.headers) {
+          if (typeof options.headers.get === 'function') {
+            referer = options.headers.get('referer') || options.headers.get('Referer') || '';
+          } else {
+            for (const key of Object.keys(options.headers)) {
+              if (key.toLowerCase() === 'referer') {
+                referer = options.headers[key];
+                break;
+              }
+            }
+          }
+        }
+        targetUrl = `http://127.0.0.1:3000/proxy?url=${encodeURIComponent(url)}${referer ? '&referer=' + encodeURIComponent(referer) : ''}`;
+      }
+      return fetch(targetUrl, options);
+    });
+  }
 
   // Test 1: Utility functions
   console.log('--- Test 1: Title Normalization & Matching ---');
@@ -59,9 +96,13 @@ async function runTests() {
   console.log('\n--- Test 3: MAL Metadata Client (Jikan) ---');
   try {
     const list = await MAL.search('Frieren');
-    assert.ok(list.length > 0);
-    assert.ok(list[0].idMal);
-    console.log(`✅ MAL search passed. First match ID: ${list[0].idMal}`);
+    if (list.length === 0) {
+      console.warn('⚠️ Jikan returned empty search list. This can be caused by Jikan API rate limit or outage.');
+    } else {
+      assert.ok(list.length > 0);
+      assert.ok(list[0].idMal);
+      console.log(`✅ MAL search passed. First match ID: ${list[0].idMal}`);
+    }
   } catch (err) {
     console.warn('⚠️ MAL request failed (possibly network/rate limits):', err.message);
   }
@@ -90,7 +131,7 @@ async function runTests() {
 
       // Let's debug by fetching raw response
       const ajaxUrl = `https://${AnimePahe.domain}/ajax/episode/list/${mainResult.animeId}`;
-      const res = await fetch(ajaxUrl, {
+      const res = await httpFetch(ajaxUrl, {
         headers: {
           'X-Requested-With': 'XMLHttpRequest',
           'Referer': `https://${AnimePahe.domain}/`,
@@ -116,7 +157,7 @@ async function runTests() {
 
         // Debug: fetch and log mapper data directly
         const debugUrl = `https://${AnimePahe.mapperDomain}/api/mal/${malId}/${targetEp.slug}/${epData.timestamp}`;
-        const debugRes = await fetch(debugUrl, {
+        const debugRes = await httpFetch(debugUrl, {
           headers: {
             'Referer': `https://${AnimePahe.domain}/`,
             'Origin': `https://${AnimePahe.domain}`,

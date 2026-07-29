@@ -4,6 +4,7 @@ import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
+import dns from 'dns';
 
 const PORT = 3000;
 
@@ -42,6 +43,40 @@ const MIME_TYPES = {
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon'
 };
+
+// DNS-over-HTTPS (DoH) resolver cache and function to bypass ISP blocking
+const dnsCache = {};
+async function resolveDoh(hostname) {
+  if (dnsCache[hostname]) return dnsCache[hostname];
+  if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(hostname) || hostname.includes(':')) {
+    return hostname;
+  }
+  try {
+    const url = `https://dns.google/resolve?name=${encodeURIComponent(hostname)}&type=A`;
+    const res = await new Promise((resolve, reject) => {
+      https.get(url, (response) => {
+        let data = '';
+        response.on('data', chunk => data += chunk);
+        response.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }).on('error', reject);
+    });
+    const ip = res.Answer?.find(ans => ans.type === 1)?.data;
+    if (ip) {
+      dnsCache[hostname] = ip;
+      console.log(`[DoH] Resolved ${hostname} -> ${ip}`);
+      return ip;
+    }
+  } catch (err) {
+    console.error(`[DoH] Resolution failed for ${hostname}:`, err.message);
+  }
+  return hostname;
+}
 
 // Rewrite relative and absolute URLs in M3U8 playlists to route through local proxy
 function rewriteManifest(manifestText, baseUrl, referer) {
@@ -90,107 +125,162 @@ const server = http.createServer((req, res) => {
     }
 
     try {
-      // Forward all incoming client headers, overriding host/origin/referer
+      // Forward all incoming client headers, overriding host/origin/referer/user-agent/encoding
       const headers = {};
       for (const [key, val] of Object.entries(req.headers)) {
-        if (!['host', 'connection', 'origin', 'referer'].includes(key.toLowerCase())) {
-          headers[key] = val;
+        const lowerKey = key.toLowerCase();
+        if (!['host', 'connection', 'origin', 'referer', 'user-agent', 'accept-encoding'].includes(lowerKey)) {
+          headers[lowerKey] = val;
         }
       }
 
-      headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+      headers['user-agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
+      // Fallback standard browser headers to satisfy Cloudflare/security checks
+      const defaults = {
+        'accept': 'application/json, text/plain, */*',
+        'accept-language': 'en-US,en;q=0.9',
+        'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin'
+      };
+      for (const [k, v] of Object.entries(defaults)) {
+        if (!headers[k]) {
+          headers[k] = v;
+        }
+      }
 
       if (referer) {
-        headers['Referer'] = referer;
+        headers['referer'] = referer;
         try {
-          headers['Origin'] = new URL(referer).origin;
+          headers['origin'] = new URL(referer).origin;
         } catch (_) {}
       }
 
-      const makeRequest = (currentUrlStr) => {
-        const targetUrl = new URL(currentUrlStr);
-        const isHttps = targetUrl.protocol === 'https:';
-        const transport = isHttps ? https : http;
-
-        const options = {
-          method: req.method,
-          headers: headers
-        };
-
-        if (isHttps) {
-          options.ciphers = CHROME_CIPHERS;
-          options.sigalgs = CHROME_SIGALGS;
-          options.minVersion = 'TLSv1.2';
-          options.maxVersion = 'TLSv1.3';
-          options.honorCipherOrder = false;
-          options.servername = targetUrl.hostname;
-        }
-
-        const proxyReq = transport.request(targetUrl, options, (proxyRes) => {
-          // Handle HTTP redirects transparently on the server side
-          if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
-            const redirectUrl = new URL(proxyRes.headers.location, currentUrlStr).toString();
-            console.log(`Proxy following redirect: ${currentUrlStr} -> ${redirectUrl}`);
-            makeRequest(redirectUrl);
-            return;
+      const makeRequest = async (currentUrlStr) => {
+        try {
+          const targetUrl = new URL(currentUrlStr);
+          const originalHostname = targetUrl.hostname;
+          
+          let resolvedIp = originalHostname;
+          try {
+            await new Promise((resolve, reject) => {
+              dns.lookup(originalHostname, (err) => {
+                if (err) reject(err);
+                else resolve();
+              });
+            });
+          } catch (dnsErr) {
+            console.log(`[DNS] Local lookup failed for ${originalHostname}, falling back to DoH...`);
+            resolvedIp = await resolveDoh(originalHostname);
           }
 
-          const isM3u8 = currentUrlStr.includes('.m3u8') ||
-                         String(proxyRes.headers['content-type']).includes('mpegurl') ||
-                         String(proxyRes.headers['content-type']).includes('mpegURL');
+          const isHttps = targetUrl.protocol === 'https:';
+          const transport = isHttps ? https : http;
 
-          // Copy matching headers back to browser client
-          const resHeaders = {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Headers': '*',
-            'Access-Control-Allow-Methods': '*'
+          const requestHeaders = { ...headers };
+          requestHeaders['Host'] = originalHostname;
+
+          const options = {
+            method: req.method,
+            headers: requestHeaders,
+            hostname: resolvedIp,
+            port: targetUrl.port || (isHttps ? 443 : 80),
+            path: targetUrl.pathname + targetUrl.search
           };
 
-          const copyHeaders = [
-            'content-type',
-            'content-length',
-            'content-range',
-            'accept-ranges',
-            'content-encoding'
-          ];
+          if (isHttps) {
+            options.ciphers = CHROME_CIPHERS;
+            options.sigalgs = CHROME_SIGALGS;
+            options.minVersion = 'TLSv1.2';
+            options.maxVersion = 'TLSv1.3';
+            options.honorCipherOrder = false;
+            options.servername = originalHostname;
+          }
 
-          copyHeaders.forEach(h => {
-            if (proxyRes.headers[h]) {
-              resHeaders[h] = proxyRes.headers[h];
+          console.log('[Proxy Request Options]:', JSON.stringify({
+            hostname: options.hostname,
+            port: options.port,
+            path: options.path,
+            method: options.method,
+            headers: options.headers,
+            servername: options.servername
+          }, null, 2));
+
+          const proxyReq = transport.request(options, (proxyRes) => {
+            console.log(`[Proxy Response] ${proxyRes.statusCode} for ${currentUrlStr}`);
+            // Handle HTTP redirects transparently on the server side
+            if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
+              const redirectUrl = new URL(proxyRes.headers.location, currentUrlStr).toString();
+              console.log(`Proxy following redirect: ${currentUrlStr} -> ${redirectUrl}`);
+              makeRequest(redirectUrl);
+              return;
+            }
+
+            const isM3u8 = currentUrlStr.includes('.m3u8') ||
+                           String(proxyRes.headers['content-type']).includes('mpegurl') ||
+                           String(proxyRes.headers['content-type']).includes('mpegURL');
+
+            // Copy matching headers back to browser client
+            const resHeaders = {
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Headers': '*',
+              'Access-Control-Allow-Methods': '*'
+            };
+
+            const copyHeaders = [
+              'content-type',
+              'content-length',
+              'content-range',
+              'accept-ranges',
+              'content-encoding'
+            ];
+
+            copyHeaders.forEach(h => {
+              if (proxyRes.headers[h]) {
+                resHeaders[h] = proxyRes.headers[h];
+              }
+            });
+
+            // If M3U8, we intercept the text and rewrite it
+            if (isM3u8) {
+              delete resHeaders['content-encoding']; // Decompress first on server side if encoded
+              delete resHeaders['content-length'];   // Length changes after rewrite
+
+              resHeaders['content-type'] = 'application/x-mpegURL';
+              res.writeHead(proxyRes.statusCode, resHeaders);
+
+              let body = '';
+              proxyRes.setEncoding('utf8');
+              proxyRes.on('data', chunk => body += chunk);
+              proxyRes.on('end', () => {
+                const rewritten = rewriteManifest(body, currentUrlStr, referer);
+                res.end(rewritten);
+              });
+            } else {
+              res.writeHead(proxyRes.statusCode, resHeaders);
+              proxyRes.pipe(res);
             }
           });
 
-          // If M3U8, we intercept the text and rewrite it
-          if (isM3u8) {
-            delete resHeaders['content-encoding']; // Decompress first on server side if encoded
-            delete resHeaders['content-length'];   // Length changes after rewrite
+          proxyReq.on('error', (err) => {
+            console.error('Proxy request error:', err.message, err.stack);
+            res.writeHead(502, { 'Content-Type': 'text/plain' });
+            res.end(`Bad Gateway: ${err.message}`);
+          });
 
-            resHeaders['content-type'] = 'application/x-mpegURL';
-            res.writeHead(proxyRes.statusCode, resHeaders);
-
-            let body = '';
-            proxyRes.setEncoding('utf8');
-            proxyRes.on('data', chunk => body += chunk);
-            proxyRes.on('end', () => {
-              const rewritten = rewriteManifest(body, currentUrlStr, referer);
-              res.end(rewritten);
-            });
+          if (req.method === 'POST') {
+            req.pipe(proxyReq);
           } else {
-            res.writeHead(proxyRes.statusCode, resHeaders);
-            proxyRes.pipe(res);
+            proxyReq.end();
           }
-        });
-
-        proxyReq.on('error', (err) => {
-          console.error('Proxy request error:', err.message);
-          res.writeHead(502, { 'Content-Type': 'text/plain' });
-          res.end(`Bad Gateway: ${err.message}`);
-        });
-
-        if (req.method === 'POST') {
-          req.pipe(proxyReq);
-        } else {
-          proxyReq.end();
+        } catch (err) {
+          console.error('makeRequest setup error:', err.message);
+          res.writeHead(500, { 'Content-Type': 'text/plain' });
+          res.end(`Internal Server Error: ${err.message}`);
         }
       };
 

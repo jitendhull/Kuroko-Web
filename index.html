@@ -518,10 +518,17 @@
               const candidates = await window.M3Scrape.scrapers.KickAss.search(title, { fetch: this.customFetchWrapper.bind(this) });
               if (candidates.length === 0) throw new Error('Anime not found in KickAss database');
 
-              const scored = candidates.map(c => ({
-                ...c,
-                score: window.M3Scrape.calculateMatchScore(this.selectedAnime, c.title_en || c.title || c.slug, c.year, c.type)
-              })).sort((a, b) => b.score - a.score);
+              const scored = candidates.map(c => {
+                let score = window.M3Scrape.calculateMatchScore(this.selectedAnime, c.title_en || c.title || c.slug, c.year, c.type);
+                const titleStr = `${c.title_en || ''} ${c.title || ''} ${c.slug || ''}`.toLowerCase();
+                const isDubCandidate = titleStr.includes('dub') || titleStr.includes('dual audio') || titleStr.includes('multi-audio') || titleStr.includes('multi audio');
+                if (this.isDub) {
+                  score = isDubCandidate ? score + 1000 : score - 500;
+                } else {
+                  score = isDubCandidate ? score - 500 : score + 1000;
+                }
+                return { ...c, score };
+              }).sort((a, b) => b.score - a.score);
 
               const bestMatch = scored[0];
               const epData = await window.M3Scrape.scrapers.KickAss.getEpisodes(bestMatch.slug, this.isDub, { fetch: this.customFetchWrapper.bind(this) });
@@ -670,7 +677,7 @@
           });
 
           // Setup Hls.js or Native streaming
-          const proxiedUrl = this.corsProxy ? `${this.corsProxy}${encodeURIComponent(url)}` : url;
+          const proxiedUrl = this.corsProxy ? `${this.corsProxy}${encodeURIComponent(url)}${this.streamReferer ? '&referer=' + encodeURIComponent(this.streamReferer) : ''}` : url;
           if (Hls.isSupported() && url.includes('.m3u8')) {
             const hls = new Hls();
             hls.loadSource(proxiedUrl);
@@ -707,8 +714,25 @@
           let targetUrl = url;
 
           // Route requests through CORS proxy if configured and requested
-          if (this.corsProxy && !url.includes('graphql.anilist.co') && !url.includes('api.jikan.moe')) {
-            targetUrl = `${this.corsProxy}${encodeURIComponent(url)}`;
+          // Note: miruro.tv is bypassed because Cloudflare blocks server-side proxy requests
+          if (this.corsProxy && 
+              !url.includes('graphql.anilist.co') && 
+              !url.includes('api.jikan.moe') && 
+              !url.includes('miruro.tv')) {
+            let referer = '';
+            if (options.headers) {
+              if (typeof options.headers.get === 'function') {
+                referer = options.headers.get('referer') || options.headers.get('Referer') || '';
+              } else {
+                for (const key of Object.keys(options.headers)) {
+                  if (key.toLowerCase() === 'referer') {
+                    referer = options.headers[key];
+                    break;
+                  }
+                }
+              }
+            }
+            targetUrl = `${this.corsProxy}${encodeURIComponent(url)}${referer ? '&referer=' + encodeURIComponent(referer) : ''}`;
           }
 
           const res = await fetch(targetUrl, options);

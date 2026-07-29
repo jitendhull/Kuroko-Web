@@ -336,7 +336,14 @@ export const AniList = {
  */
 export const MAL = {
   async search(query, fetchOptions = {}) {
-    const res = await httpFetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(query)}&limit=10`, fetchOptions);
+    let res;
+    let attempts = 3;
+    while (attempts > 0) {
+      res = await httpFetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(query)}&limit=10`, fetchOptions);
+      if (res.status !== 429) break;
+      attempts--;
+      await new Promise(r => setTimeout(r, 1500));
+    }
     const json = await res.json();
     if (!json || !json.data) return [];
 
@@ -362,7 +369,14 @@ export const MAL = {
   },
 
   async getDetails(id, fetchOptions = {}) {
-    const res = await httpFetch(`https://api.jikan.moe/v4/anime/${id}`, fetchOptions);
+    let res;
+    let attempts = 3;
+    while (attempts > 0) {
+      res = await httpFetch(`https://api.jikan.moe/v4/anime/${id}`, fetchOptions);
+      if (res.status !== 429) break;
+      attempts--;
+      await new Promise(r => setTimeout(r, 1500));
+    }
     const json = await res.json();
     const item = json?.data;
     if (!item) return null;
