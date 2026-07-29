@@ -1,5 +1,5 @@
 {
-  "name": "m3-scrape",
+  "name": "kuroko-web",
   "version": "1.0.0",
   "type": "module",
   "main": "src/index.js",
