@@ -1,9 +1,35 @@
-// Simple static file server using Node.js standard libraries.
+// Unified Local static server, CORS Proxy, M3U8 rewriter, and Native Player Launcher.
 import http from 'http';
+import https from 'https';
 import fs from 'fs';
 import path from 'path';
+import { spawn } from 'child_process';
 
 const PORT = 3000;
+
+// Chrome-like cipher suites for TLS fingerprint spoofing to bypass Cloudflare
+const CHROME_CIPHERS = [
+  'TLS_AES_128_GCM_SHA256',
+  'TLS_AES_256_GCM_SHA384',
+  'TLS_CHACHA20_POLY1305_SHA256',
+  'ECDHE-ECDSA-AES128-GCM-SHA256',
+  'ECDHE-RSA-AES128-GCM-SHA256',
+  'ECDHE-ECDSA-AES256-GCM-SHA384',
+  'ECDHE-RSA-AES256-GCM-SHA384',
+  'ECDHE-ECDSA-CHACHA20-POLY1305',
+  'ECDHE-RSA-CHACHA20-POLY1305',
+  'ECDHE-RSA-AES128-SHA',
+  'ECDHE-RSA-AES256-SHA'
+].join(':');
+
+const CHROME_SIGALGS = [
+  'ecdsa_secp256r1_sha256',
+  'rsa_pss_rsae_sha256',
+  'rsa_pkcs1_sha256',
+  'ecdsa_secp384r1_sha384',
+  'rsa_pss_rsae_sha384',
+  'rsa_pkcs1_sha384'
+].join(':');
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -17,11 +43,223 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon'
 };
 
-const server = http.createServer((req, res) => {
-  console.log(`${req.method} ${req.url}`);
+// Rewrite relative and absolute URLs in M3U8 playlists to route through local proxy
+function rewriteManifest(manifestText, baseUrl, referer) {
+  const lines = manifestText.split('\n');
+  const rewritten = lines.map(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return line;
+    if (trimmed.startsWith('#')) {
+      if (trimmed.includes('URI=')) {
+        return trimmed.replace(/URI=["']([^"']+)["']/g, (match, uri) => {
+          try {
+            const absUrl = new URL(uri, baseUrl).toString();
+            return `URI="http://localhost:${PORT}/proxy?url=${encodeURIComponent(absUrl)}&referer=${encodeURIComponent(referer)}"`;
+          } catch (_) {
+            return match;
+          }
+        });
+      }
+      return line;
+    }
+    try {
+      const absUrl = new URL(trimmed, baseUrl).toString();
+      return `http://localhost:${PORT}/proxy?url=${encodeURIComponent(absUrl)}&referer=${encodeURIComponent(referer)}`;
+    } catch (_) {
+      return line;
+    }
+  });
+  return rewritten.join('\n');
+}
 
-  // Normalize URL path and map to local file
-  let filePath = '.' + req.url;
+const server = http.createServer((req, res) => {
+  const parsedUrl = new URL(req.url, `http://localhost:${PORT}`);
+  const pathname = parsedUrl.pathname;
+
+  console.log(`${req.method} ${pathname}`);
+
+  // 1. CORS Proxy Endpoint
+  if (pathname === '/proxy') {
+    const targetUrlStr = parsedUrl.searchParams.get('url');
+    const referer = parsedUrl.searchParams.get('referer') || '';
+
+    if (!targetUrlStr) {
+      res.writeHead(400, { 'Content-Type': 'text/plain' });
+      res.end('Missing "url" parameter');
+      return;
+    }
+
+    try {
+      // Forward all incoming client headers, overriding host/origin/referer
+      const headers = {};
+      for (const [key, val] of Object.entries(req.headers)) {
+        if (!['host', 'connection', 'origin', 'referer'].includes(key.toLowerCase())) {
+          headers[key] = val;
+        }
+      }
+
+      headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
+      if (referer) {
+        headers['Referer'] = referer;
+        try {
+          headers['Origin'] = new URL(referer).origin;
+        } catch (_) {}
+      }
+
+      const makeRequest = (currentUrlStr) => {
+        const targetUrl = new URL(currentUrlStr);
+        const isHttps = targetUrl.protocol === 'https:';
+        const transport = isHttps ? https : http;
+
+        const options = {
+          method: req.method,
+          headers: headers
+        };
+
+        if (isHttps) {
+          options.ciphers = CHROME_CIPHERS;
+          options.sigalgs = CHROME_SIGALGS;
+          options.minVersion = 'TLSv1.2';
+          options.maxVersion = 'TLSv1.3';
+          options.honorCipherOrder = false;
+          options.servername = targetUrl.hostname;
+        }
+
+        const proxyReq = transport.request(targetUrl, options, (proxyRes) => {
+          // Handle HTTP redirects transparently on the server side
+          if (proxyRes.statusCode >= 300 && proxyRes.statusCode < 400 && proxyRes.headers.location) {
+            const redirectUrl = new URL(proxyRes.headers.location, currentUrlStr).toString();
+            console.log(`Proxy following redirect: ${currentUrlStr} -> ${redirectUrl}`);
+            makeRequest(redirectUrl);
+            return;
+          }
+
+          const isM3u8 = currentUrlStr.includes('.m3u8') ||
+                         String(proxyRes.headers['content-type']).includes('mpegurl') ||
+                         String(proxyRes.headers['content-type']).includes('mpegURL');
+
+          // Copy matching headers back to browser client
+          const resHeaders = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': '*',
+            'Access-Control-Allow-Methods': '*'
+          };
+
+          const copyHeaders = [
+            'content-type',
+            'content-length',
+            'content-range',
+            'accept-ranges',
+            'content-encoding'
+          ];
+
+          copyHeaders.forEach(h => {
+            if (proxyRes.headers[h]) {
+              resHeaders[h] = proxyRes.headers[h];
+            }
+          });
+
+          // If M3U8, we intercept the text and rewrite it
+          if (isM3u8) {
+            delete resHeaders['content-encoding']; // Decompress first on server side if encoded
+            delete resHeaders['content-length'];   // Length changes after rewrite
+
+            resHeaders['content-type'] = 'application/x-mpegURL';
+            res.writeHead(proxyRes.statusCode, resHeaders);
+
+            let body = '';
+            proxyRes.setEncoding('utf8');
+            proxyRes.on('data', chunk => body += chunk);
+            proxyRes.on('end', () => {
+              const rewritten = rewriteManifest(body, currentUrlStr, referer);
+              res.end(rewritten);
+            });
+          } else {
+            res.writeHead(proxyRes.statusCode, resHeaders);
+            proxyRes.pipe(res);
+          }
+        });
+
+        proxyReq.on('error', (err) => {
+          console.error('Proxy request error:', err.message);
+          res.writeHead(502, { 'Content-Type': 'text/plain' });
+          res.end(`Bad Gateway: ${err.message}`);
+        });
+
+        if (req.method === 'POST') {
+          req.pipe(proxyReq);
+        } else {
+          proxyReq.end();
+        }
+      };
+
+      makeRequest(targetUrlStr);
+    } catch (err) {
+      res.writeHead(400, { 'Content-Type': 'text/plain' });
+      res.end(`Invalid URL: ${err.message}`);
+    }
+    return;
+  }
+
+  // 2. Native Player Launcher Endpoint
+  if (pathname === '/play-native') {
+    const targetUrl = parsedUrl.searchParams.get('url');
+    const referer = parsedUrl.searchParams.get('referer') || '';
+    const player = parsedUrl.searchParams.get('player') || 'mpv';
+    const subUrl = parsedUrl.searchParams.get('sub') || '';
+
+    if (!targetUrl) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing "url" parameter' }));
+      return;
+    }
+
+    try {
+      let args = [];
+      let command = player;
+
+      if (player === 'mpv') {
+        args.push(targetUrl);
+        if (referer) {
+          args.push(`--http-header-fields=Referer: ${referer}`);
+        }
+        if (subUrl) {
+          args.push(`--sub-files=${subUrl}`);
+        }
+      } else if (player === 'vlc') {
+        args.push(targetUrl);
+        if (referer) {
+          args.push(`--http-referrer=${referer}`);
+        }
+        if (subUrl) {
+          args.push(`--sub-file=${subUrl}`);
+        }
+      } else {
+        throw new Error('Unsupported player type');
+      }
+
+      console.log(`Spawning native player: ${command} ${args.join(' ')}`);
+      const child = spawn(command, args, { detached: true, stdio: 'ignore' });
+      child.unref();
+
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end(JSON.stringify({ success: true, player, command, args }));
+    } catch (err) {
+      res.writeHead(500, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
+  // 3. Static File Server Path
+  let filePath = '.' + pathname;
   if (filePath === './') {
     filePath = './index.html';
   }
@@ -46,5 +284,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}/`);
+  console.log(`Local server & proxy running at http://localhost:${PORT}/`);
 });

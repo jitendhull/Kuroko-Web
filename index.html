@@ -165,6 +165,12 @@
       </div>
     </div>
 
+    <!-- CORS Proxy Guidance Banner -->
+    <div class="bg-amber-950/20 border-b border-amber-900/30 px-6 py-2.5 flex items-center gap-3 text-xs text-amber-300">
+      <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500 flex-shrink-0"></i>
+      <span><strong>Proxy Note:</strong> Some providers (Miruro and Kwik) enforce Cloudflare blocks on public/local proxies. For direct streams, clear the <strong>CORS Bypass Proxy</strong> field in settings and enable a CORS-bypassing browser extension. Alternatively, run this dashboard inside a <strong>userscript manager (like Tampermonkey)</strong> where CORS is bypassed natively.</span>
+    </div>
+
     <!-- Main Content Area -->
     <main class="flex-grow flex flex-col md:flex-row gap-6 p-6">
 
@@ -237,7 +243,46 @@
               <span class="text-zinc-400 text-xs font-semibold uppercase tracking-wider">Resolving direct playback URL...</span>
             </div>
 
-            <video id="video-element" class="w-full h-full" playsinline controls></video>
+            <!-- Standard Video Element -->
+            <div x-show="!useIframe" class="w-full h-full">
+              <video id="video-element" class="w-full h-full" playsinline controls></video>
+            </div>
+
+            <!-- Fallback Iframe Element -->
+            <template x-if="useIframe">
+              <iframe :src="iframeUrl"
+                      class="w-full h-full border-0"
+                      allowfullscreen
+                      allow="autoplay; encrypted-media"></iframe>
+            </template>
+          </div>
+
+          <!-- Multi-Player Controls -->
+          <div class="flex flex-wrap gap-2 mt-2">
+            <template x-if="streamUrl">
+              <div class="flex flex-wrap gap-2 w-full">
+                <button @click="playNative('mpv')"
+                        class="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 border border-zinc-700 text-zinc-200 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
+                  <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                  Play in MPV
+                </button>
+                <button @click="playNative('vlc')"
+                        class="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 border border-zinc-700 text-zinc-200 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
+                  <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                  Play in VLC
+                </button>
+                <button @click="useIframe = !useIframe"
+                        class="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 border border-zinc-700 text-zinc-200 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ml-auto">
+                  <i data-lucide="monitor-play" class="w-3.5 h-3.5"></i>
+                  <span x-text="useIframe ? 'Switch to Web Player' : 'Switch to Remote Player'"></span>
+                </button>
+              </div>
+            </template>
+            <template x-if="!streamUrl && iframeUrl">
+              <div class="flex justify-between items-center w-full text-xs text-zinc-500">
+                <span>Scraping failed. Direct streaming offline for this link. Playing via remote embed fallback.</span>
+              </div>
+            </template>
           </div>
 
           <!-- Referral warnings / Info -->
@@ -337,7 +382,9 @@
         metaProvider: 'anilist',
         selectedScraper: 'animepahe',
         isDub: false,
-        corsProxy: 'https://corsproxy.io/?url=',
+        corsProxy: 'http://localhost:3000/proxy?url=',
+        useIframe: false,
+        iframeUrl: '',
 
         // Data states
         searchResults: [],
@@ -346,6 +393,7 @@
         currentEpisode: null,
         streamUrl: '',
         streamReferer: '',
+        subtitles: [],
 
         // Plyr video player instances
         player: null,
@@ -430,7 +478,8 @@
         async fetchEpisodes() {
           if (!this.selectedAnime) return;
 
-          const title = this.selectedAnime.title.english || this.selectedAnime.title.romaji;
+          const rawTitle = this.selectedAnime.title.english || this.selectedAnime.title.romaji;
+          const title = rawTitle.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
           console.log(`Fetching episodes for scraper ${this.selectedScraper}...`);
 
           try {
@@ -488,9 +537,21 @@
         async playEpisode(epObj) {
           this.currentEpisode = epObj;
           this.scraping = true;
+          this.useIframe = false;
+          this.iframeUrl = '';
+          this.subtitles = [];
           this.stopPlayback();
 
           console.log(`Resolving stream sources for episode:`, epObj);
+
+          let resolvedIframeUrl = '';
+          if (this.selectedScraper === 'animepahe') {
+            resolvedIframeUrl = `https://anikototv.to/plyr.php?id=${encodeURIComponent(epObj.slug)}`;
+          } else if (this.selectedScraper === 'kickass') {
+            resolvedIframeUrl = `https://kaa.lt/watch/${this.kickassSlug}/ep-${epObj.episode_number}`;
+          } else if (this.selectedScraper === 'miruro') {
+            resolvedIframeUrl = `https://www.miruro.tv/watch/${this.selectedAnime.id}?ep=${epObj.num}`;
+          }
 
           try {
             let streamData = null;
@@ -510,6 +571,9 @@
                   language: t.kind || 'en'
                 })) : []
               };
+              if (stream.url && stream.type === 'embed') {
+                resolvedIframeUrl = stream.url;
+              }
             } else if (this.selectedScraper === 'animepahe') {
               const malId = this.animepaheMalId || this.selectedAnime.idMal || '154587';
               streamData = await window.M3Scrape.scrapers.AnimePahe.getSources(
@@ -520,6 +584,17 @@
                 { fetch: this.customFetchWrapper.bind(this) }
               );
             } else if (this.selectedScraper === 'kickass') {
+              // Get direct embed URL from API for fallback
+              try {
+                const url = `https://${window.M3Scrape.scrapers.KickAss.domain}/api/show/${this.kickassSlug}/episode/ep-${epObj.episode_number}-${epObj.slug}`;
+                const res = await this.customFetchWrapper(url);
+                const json = await res.json();
+                const servers = json?.servers || [];
+                if (servers.length > 0 && servers[0].src) {
+                  resolvedIframeUrl = servers[0].src;
+                }
+              } catch (_) {}
+
               const rawSources = await window.M3Scrape.scrapers.KickAss.getSources(
                 this.kickassSlug,
                 epObj.episode_number,
@@ -544,13 +619,35 @@
             if (streamData) {
               this.streamUrl = streamData.streamUrl;
               this.streamReferer = streamData.referer || '';
+              this.subtitles = streamData.subtitles || [];
+              this.iframeUrl = resolvedIframeUrl;
               this.initPlayer(streamData.streamUrl, streamData.subtitles || []);
             }
           } catch (err) {
-            console.error('Scraping error:', err);
-            alert(`Scraping failed: ${err.message}`);
+            console.warn('Scraping failed, falling back to remote iframe player:', err.message);
+            this.streamUrl = '';
+            this.streamReferer = '';
+            this.subtitles = [];
+            this.iframeUrl = resolvedIframeUrl;
+            this.useIframe = true;
           } finally {
             this.scraping = false;
+          }
+        },
+
+        async playNative(playerType) {
+          if (!this.streamUrl) return;
+          const firstSub = this.subtitles?.[0]?.src || '';
+          const localSubUrl = firstSub ? `http://localhost:3000/proxy?url=${encodeURIComponent(firstSub)}` : '';
+          const url = `http://localhost:3000/play-native?player=${playerType}&url=${encodeURIComponent(this.streamUrl)}&referer=${encodeURIComponent(this.streamReferer)}&sub=${encodeURIComponent(localSubUrl)}`;
+          try {
+            const res = await fetch(url);
+            const json = await res.json();
+            if (json.error) throw new Error(json.error);
+            console.log(`Successfully spawned ${playerType}`);
+          } catch (err) {
+            console.error(`Failed to play in ${playerType}:`, err.message);
+            alert(`Failed to launch ${playerType}. Make sure it is installed and in your system PATH.`);
           }
         },
 
@@ -601,6 +698,8 @@
           }
           this.streamUrl = '';
           this.streamReferer = '';
+          this.useIframe = false;
+          this.iframeUrl = '';
         },
 
         // Custom fetch client wrapper designed to run queries through the CORS proxy
