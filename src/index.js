@@ -3,6 +3,29 @@
 
 let customFetch = null;
 
+// Lightweight in-memory cache for API/metadata requests
+const requestCache = new Map();
+const CACHE_MAX_ENTRIES = 150;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min TTL
+
+function getCache(key) {
+  const hit = requestCache.get(key);
+  if (!hit) return null;
+  if (Date.now() > hit.expiry) {
+    requestCache.delete(key);
+    return null;
+  }
+  return hit.data;
+}
+
+function setCache(key, data, ttlMs = CACHE_TTL_MS) {
+  if (requestCache.size >= CACHE_MAX_ENTRIES) {
+    const oldestKey = requestCache.keys().next().value;
+    requestCache.delete(oldestKey);
+  }
+  requestCache.set(key, { data, expiry: Date.now() + ttlMs });
+}
+
 /**
  * Configure a custom fetch implementation (e.g. GM_xmlhttpRequest or Axios wrapper).
  * @param {Function} fetchFn - Custom fetch implementation
@@ -12,9 +35,10 @@ export function setFetch(fetchFn) {
 }
 
 /**
- * Perform an HTTP request using the configured or global fetch client.
+ * Perform an HTTP request with optional timeout & caching.
  */
 export async function httpFetch(url, options = {}) {
+  const timeoutMs = options.timeout || 12000;
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
     ...(options.headers || {})
@@ -33,6 +57,7 @@ export async function httpFetch(url, options = {}) {
         url: url,
         headers: headers,
         data: options.body,
+        timeout: timeoutMs,
         onload: (res) => {
           resolve({
             ok: res.status >= 200 && res.status < 300,
@@ -50,19 +75,31 @@ export async function httpFetch(url, options = {}) {
           });
         },
         onerror: reject,
-        ontimeout: () => reject(new Error('Timeout'))
+        ontimeout: () => reject(new Error('Request timeout'))
       });
     });
   }
 
-  const response = await fetchFn(url, {
-    method: options.method || 'GET',
-    headers: headers,
-    body: options.body,
-    redirect: 'follow'
-  });
+  let timeoutId = null;
+  let signal = options.signal;
+  if (!signal && typeof AbortController !== 'undefined') {
+    const controller = new AbortController();
+    signal = controller.signal;
+    timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  }
 
-  return response;
+  try {
+    const response = await fetchFn(url, {
+      method: options.method || 'GET',
+      headers: headers,
+      body: options.body,
+      redirect: 'follow',
+      signal: signal
+    });
+    return response;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 }
 
 /**
@@ -241,6 +278,10 @@ function encodePipeRequest(path, query) {
  */
 export const AniList = {
   async search(query, fetchOptions = {}) {
+    const cacheKey = `anilist_search_${query.toLowerCase().trim()}`;
+    const cached = getCache(cacheKey);
+    if (cached) return cached;
+
     const graphqlQuery = `
       query ($search: String, $page: Int, $perPage: Int) {
         Page(page: $page, perPage: $perPage) {
@@ -283,10 +324,16 @@ export const AniList = {
     });
 
     const json = await res.json();
-    return json?.data?.Page?.media || [];
+    const results = json?.data?.Page?.media || [];
+    if (results.length > 0) setCache(cacheKey, results);
+    return results;
   },
 
   async getDetails(id, fetchOptions = {}) {
+    const cacheKey = `anilist_details_${id}`;
+    const cached = getCache(cacheKey);
+    if (cached) return cached;
+
     const graphqlQuery = `
       query ($id: Int) {
         Media(id: $id, type: ANIME) {
@@ -327,7 +374,9 @@ export const AniList = {
     });
 
     const json = await res.json();
-    return json?.data?.Media || null;
+    const media = json?.data?.Media || null;
+    if (media) setCache(cacheKey, media);
+    return media;
   }
 };
 

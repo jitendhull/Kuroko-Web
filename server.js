@@ -2,11 +2,16 @@
 import http from 'http';
 import https from 'https';
 import fs from 'fs';
+import zlib from 'zlib';
 import path from 'path';
 import { spawn } from 'child_process';
 import dns from 'dns';
 
 const PORT = 3000;
+
+// HTTP Agent connection pooling for fast keep-alive reuse
+const httpAgent = new http.Agent({ keepAlive: true, maxSockets: 50 });
+const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 50 });
 
 // Chrome-like cipher suites for TLS fingerprint spoofing to bypass Cloudflare
 const CHROME_CIPHERS = [
@@ -188,6 +193,7 @@ const server = http.createServer((req, res) => {
             method: req.method,
             headers: requestHeaders,
             hostname: resolvedIp,
+            agent: isHttps ? httpsAgent : httpAgent,
             port: targetUrl.port || (isHttps ? 443 : 80),
             path: targetUrl.pathname + targetUrl.search
           };
@@ -357,18 +363,39 @@ const server = http.createServer((req, res) => {
   const extname = String(path.extname(filePath)).toLowerCase();
   const contentType = MIME_TYPES[extname] || 'application/octet-stream';
 
-  fs.readFile(filePath, (error, content) => {
-    if (error) {
-      if (error.code === 'ENOENT') {
+  fs.stat(filePath, (err, stats) => {
+    if (err) {
+      if (err.code === 'ENOENT') {
         res.writeHead(404, { 'Content-Type': 'text/html' });
         res.end('<h1>404 Not Found</h1>', 'utf-8');
       } else {
         res.writeHead(500);
-        res.end(`Server Error: ${error.code} ..\n`);
+        res.end(`Server Error: ${err.code}\n`);
       }
+      return;
+    }
+
+    const acceptEncoding = req.headers['accept-encoding'] || '';
+    const headers = {
+      'Content-Type': contentType,
+      'Cache-Control': extname === '.html' ? 'no-cache' : 'public, max-age=86400',
+      'Access-Control-Allow-Origin': '*'
+    };
+
+    const rawStream = fs.createReadStream(filePath);
+
+    if (/\bgzip\b/.test(acceptEncoding) && ['.html', '.js', '.css', '.json', '.svg'].includes(extname)) {
+      headers['Content-Encoding'] = 'gzip';
+      res.writeHead(200, headers);
+      rawStream.pipe(zlib.createGzip()).pipe(res);
+    } else if (/\bdeflate\b/.test(acceptEncoding) && ['.html', '.js', '.css', '.json', '.svg'].includes(extname)) {
+      headers['Content-Encoding'] = 'deflate';
+      res.writeHead(200, headers);
+      rawStream.pipe(zlib.createDeflate()).pipe(res);
     } else {
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(content, 'utf-8');
+      headers['Content-Length'] = stats.size;
+      res.writeHead(200, headers);
+      rawStream.pipe(res);
     }
   });
 });

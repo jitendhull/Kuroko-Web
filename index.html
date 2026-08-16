@@ -5,10 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>M3 Scrape - Anime Streaming Dashboard</title>
 
+  <!-- Preconnect & Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://graphql.anilist.co">
+  <link rel="preconnect" href="https://cdn.plyr.io">
+
   <!-- CSS Libraries -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <style>
     body {
@@ -38,13 +44,17 @@
       background: #3f3f46;
       border-radius: 3px;
     }
+    .anime-card {
+      content-visibility: auto;
+      contain-intrinsic-size: 200px 300px;
+    }
   </style>
 
   <!-- JS Libraries (CDN) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-  <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+  <script defer src="https://unpkg.com/lucide@latest"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script defer src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
 
   <!-- Alpine.js (Loads after modules) -->
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -192,8 +202,10 @@
                    class="anime-card group bg-zinc-900 border border-zinc-800/60 rounded-xl overflow-hidden cursor-pointer hover:border-zinc-700 transition-all duration-300 flex flex-col">
                 <!-- Cover Image -->
                 <div class="aspect-[3/4] overflow-hidden relative bg-zinc-950">
-                  <img :src="anime.coverImage.large"
+                  <img :src="anime.coverImage.large || anime.coverImage.medium"
                        :alt="anime.title.english || anime.title.romaji"
+                       loading="lazy"
+                       decoding="async"
                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
                   <div class="absolute top-2 right-2 flex flex-col gap-1">
                     <span x-text="anime.format || 'TV'"
@@ -304,6 +316,8 @@
         <!-- Anime Banner / Info header -->
         <div class="relative rounded-lg overflow-hidden h-36 bg-zinc-950 flex-shrink-0">
           <img :src="selectedAnime?.bannerImage || selectedAnime?.coverImage?.large"
+               loading="lazy"
+               decoding="async"
                class="w-full h-full object-cover opacity-60">
           <div class="absolute inset-0 bg-gradient-to-t from-zinc-900 to-transparent"></div>
           <div class="absolute bottom-3 left-3 right-3 flex items-end justify-between">
