@@ -17,10 +17,148 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <style>
-    body {
+    :root {
+      --bg-base: #000000;
+      --bg-elev-1: #0a0a0a;
+      --bg-elev-2: #141414;
+      --bg-hover: #1f1f1f;
+      --border-subtle: #1a1a1a;
+      --text-primary: #ffffff;
+      --text-secondary: #a3a3a3;
+      --text-muted: #6b6b6b;
+      --accent: #f5c518;
+      --accent-hover: #ffd84d;
+      --sidebar-w: 64px;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-base);
+      color: var(--text-primary);
       font-family: 'Inter', sans-serif;
-      background-color: #09090b;
-      color: #fafafa;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    .app-shell { display: flex; min-height: 100vh; }
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-w);
+      background: var(--bg-elev-1);
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 18px 0;
+      gap: 18px;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      z-index: 50;
+    }
+    .sidebar .brand {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent), #ffaa00);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: #000; font-weight: 800; font-size: 18px;
+      margin-bottom: 6px;
+    }
+    .sidebar nav { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+    .sidebar nav button {
+      width: 40px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+    .sidebar nav button:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .sidebar nav button.active { background: var(--bg-hover); color: var(--accent); }
+    .sidebar nav button.active::before {
+      content: '';
+      position: absolute;
+      left: -18px;
+      top: 8px; bottom: 8px;
+      width: 3px;
+      background: var(--accent);
+      border-radius: 0 2px 2px 0;
+    }
+    .sidebar nav button i { width: 20px; height: 20px; }
+    .sidebar .profile {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #4a4a4a, #2a2a2a);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-secondary); font-size: 12px; font-weight: 600;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: border-color 0.15s;
+    }
+    .sidebar .profile:hover { border-color: var(--accent); }
+    /* Main */
+    .main-area { margin-left: var(--sidebar-w); flex: 1; min-width: 0; }
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 32px;
+      gap: 24px;
+      background: linear-gradient(180deg, rgba(0,0,0,0.85), rgba(0,0,0,0));
+      position: sticky; top: 0;
+      z-index: 40;
+      backdrop-filter: blur(8px);
+    }
+    .search-wrap {
+      flex: 1;
+      max-width: 420px;
+      position: relative;
+    }
+    .search-wrap input {
+      width: 100%;
+      background: var(--bg-elev-2);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      padding: 9px 14px 9px 38px;
+      border-radius: 999px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-wrap input::placeholder { color: var(--text-muted); }
+    .search-wrap input:focus { border-color: var(--accent); }
+    .search-wrap i {
+      position: absolute;
+      left: 14px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      width: 16px; height: 16px;
+    }
+    .adult-toggle {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--bg-elev-2);
+      border: 1px solid var(--border-subtle);
+      border-radius: 999px;
+      padding: 4px 12px 4px 14px;
+      font-size: 12px; color: var(--text-secondary);
+      cursor: pointer;
+    }
+    .adult-toggle .pill {
+      width: 28px; height: 16px;
+      background: var(--accent);
+      border-radius: 999px;
+      position: relative;
+      transition: background 0.2s;
+    }
+    .adult-toggle .pill::after {
+      content: '';
+      width: 12px; height: 12px;
+      background: #000;
+      border-radius: 50%;
+      position: absolute;
+      right: 2px; top: 2px;
     }
     /* Plyr dark theme override */
     .plyr {
@@ -30,24 +168,14 @@
       width: 100% !important;
       height: 100% !important;
     }
-    .plyr__video-wrapper {
-      height: 100% !important;
-    }
-    .custom-scroll::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    .custom-scroll::-webkit-scrollbar-track {
-      background: #18181b;
-    }
+    .plyr__video-wrapper { height: 100% !important; }
+    .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: var(--bg-elev-1); }
     .custom-scroll::-webkit-scrollbar-thumb {
-      background: #3f3f46;
+      background: #2a2a2a;
       border-radius: 3px;
     }
-    .anime-card {
-      content-visibility: auto;
-      contain-intrinsic-size: 200px 300px;
-    }
+    .anime-card { content-visibility: auto; contain-intrinsic-size: 200px 300px; }
   </style>
 
   <!-- JS Libraries (CDN) -->
@@ -73,39 +201,36 @@
   <div x-data="animeApp()"
        x-init="init()"
        @m3scrape-ready.window="libLoaded = true"
-       class="flex flex-col flex-grow">
+       class="app-shell">
 
-    <!-- Top Navbar -->
-    <header class="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-40 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
-      <div class="flex items-center gap-3">
-        <div class="p-2 bg-indigo-600 rounded-lg text-white">
-          <i data-lucide="play-circle" class="w-6 h-6"></i>
-        </div>
-        <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
-          M3 Scrape Dashboard
-        </h1>
+    <!-- Vertical Icon Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">K</div>
+      <nav>
+        <button class="active" title="Home"><i data-lucide="home"></i></button>
+        <button title="Search"><i data-lucide="search"></i></button>
+        <button title="Trending"><i data-lucide="flame"></i></button>
+        <button title="Watchlist"><i data-lucide="bookmark"></i></button>
+        <button title="Favorites"><i data-lucide="heart"></i></button>
+        <button title="Genres"><i data-lucide="layout-grid"></i></button>
+        <button title="Settings" @click="showSettings = !showSettings"><i data-lucide="settings"></i></button>
+      </nav>
+      <div class="profile">JD</div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="main-area">
+
+    <!-- Top Bar: search + provider toggle + adult filter -->
+    <header class="top-bar">
+      <div class="search-wrap">
+        <i data-lucide="search"></i>
+        <input type="text"
+               x-model="searchQuery"
+               @keyup.enter="search()"
+               placeholder="Search anime...">
       </div>
-
-      <!-- Search Panel -->
-      <div class="flex items-center gap-2 w-full md:w-auto max-w-xl">
-        <div class="relative flex-grow">
-          <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-zinc-400">
-            <i data-lucide="search" class="w-4 h-4"></i>
-          </span>
-          <input type="text"
-                 x-model="searchQuery"
-                 @keyup.enter="search()"
-                 placeholder="Search anime..."
-                 class="w-full bg-zinc-900 border border-zinc-800 rounded-lg py-2 pl-10 pr-4 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors">
-        </div>
-        <button @click="search()"
-                class="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-          Search
-        </button>
-      </div>
-
-      <!-- Settings / Config -->
-      <div class="flex items-center gap-4">
+      <div style="display:flex; align-items:center; gap:12px;">
         <!-- Metadata Selector -->
         <div class="flex bg-zinc-900 border border-zinc-800 rounded-lg p-0.5 text-xs font-medium">
           <button @click="metaProvider = 'anilist'"
@@ -119,12 +244,11 @@
             MAL (Jikan)
           </button>
         </div>
-
-        <!-- Settings Button -->
-        <button @click="showSettings = !showSettings"
-                class="p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors text-zinc-400 hover:text-zinc-100">
-          <i data-lucide="sliders" class="w-5 h-5"></i>
-        </button>
+        <!-- Adult content toggle -->
+        <div class="adult-toggle" @click="allowAdult = !allowAdult">
+          <span>18+</span>
+          <div class="pill" :style="!allowAdult ? 'background:#333' : ''"></div>
+        </div>
       </div>
     </header>
 
@@ -136,21 +260,22 @@
          x-transition:leave="transition ease-in duration-150"
          x-transition:leave-start="opacity-100 translate-y-0"
          x-transition:leave-end="opacity-0 -translate-y-4"
-         class="border-b border-zinc-800 bg-zinc-950 px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-6">
+         class="px-8 py-5 grid grid-cols-1 md:grid-cols-3 gap-6 border-b"
+         style="background:var(--bg-elev-1); border-color:var(--border-subtle);">
 
       <!-- CORS Proxy Configuration -->
       <div>
-        <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">CORS Bypass Proxy</label>
+        <label class="block text-xs font-semibold uppercase tracking-wider mb-2" style="color:var(--text-secondary);">CORS Bypass Proxy</label>
         <input type="text"
                x-model="corsProxy"
                placeholder="Proxy URL..."
                class="w-full bg-zinc-900 border border-zinc-800 rounded-lg py-1.5 px-3 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-indigo-500">
-        <p class="text-[10px] text-zinc-500 mt-1">Appends target url. Set empty if using a CORS extension. (Note: Miruro/Kwik require direct connection or Userscripts/GM_xmlhttpRequest to bypass Cloudflare blocks).</p>
+        <p class="text-[10px] mt-1" style="color:var(--text-muted);">Appends target url. Set empty if using a CORS extension. (Note: Miruro/Kwik require direct connection or Userscripts/GM_xmlhttpRequest to bypass Cloudflare blocks).</p>
       </div>
 
       <!-- Scraper configuration -->
       <div>
-        <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">Active Streaming Scraper</label>
+        <label class="block text-xs font-semibold uppercase tracking-wider mb-2" style="color:var(--text-secondary);">Active Streaming Scraper</label>
         <select x-model="selectedScraper"
                 class="w-full bg-zinc-900 border border-zinc-800 rounded-lg py-1.5 px-3 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500">
           <option value="animepahe">AnimePahe (Kiwi)</option>
@@ -161,13 +286,13 @@
 
       <!-- Language Preferences -->
       <div>
-        <label class="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">Audio Type</label>
+        <label class="block text-xs font-semibold uppercase tracking-wider mb-2" style="color:var(--text-secondary);">Audio Type</label>
         <div class="flex items-center gap-4 mt-2">
-          <label class="flex items-center gap-2 cursor-pointer text-sm text-zinc-300">
+          <label class="flex items-center gap-2 cursor-pointer text-sm" style="color:var(--text-secondary);">
             <input type="radio" :value="false" x-model="isDub" class="text-indigo-600 focus:ring-0 focus:ring-offset-0 bg-zinc-900 border-zinc-800">
             Subbed (Japanese Audio)
           </label>
-          <label class="flex items-center gap-2 cursor-pointer text-sm text-zinc-300">
+          <label class="flex items-center gap-2 cursor-pointer text-sm" style="color:var(--text-secondary);">
             <input type="radio" :value="true" x-model="isDub" class="text-indigo-600 focus:ring-0 focus:ring-offset-0 bg-zinc-900 border-zinc-800">
             Dubbed (English Audio)
           </label>
@@ -175,22 +300,16 @@
       </div>
     </div>
 
-    <!-- CORS Proxy Guidance Banner -->
-    <div class="bg-amber-950/20 border-b border-amber-900/30 px-6 py-2.5 flex items-center gap-3 text-xs text-amber-300">
-      <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500 flex-shrink-0"></i>
-      <span><strong>Proxy Note:</strong> Some providers (Miruro and Kwik) enforce Cloudflare blocks on public/local proxies. For direct streams, clear the <strong>CORS Bypass Proxy</strong> field in settings and enable a CORS-bypassing browser extension. Alternatively, run this dashboard inside a <strong>userscript manager (like Tampermonkey)</strong> where CORS is bypassed natively.</span>
-    </div>
-
     <!-- Main Content Area -->
-    <main class="flex-grow flex flex-col md:flex-row gap-6 p-6">
+    <main class="p-8 pt-4 flex flex-col md:flex-row gap-6">
 
       <!-- Left Area: Search Results Grid / Details panel -->
-      <div class="flex-grow flex flex-col gap-6 md:w-3/5">
+      <div class="flex-grow flex flex-col gap-6 md:w-3/5 min-w-0">
 
         <!-- Loading spinner -->
         <div x-show="loading" class="flex flex-col items-center justify-center py-20 gap-4 flex-grow">
-          <div class="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-          <span class="text-zinc-400 text-sm font-medium">Fetching details...</span>
+          <div class="w-12 h-12 border-4 rounded-full animate-spin" style="border-color:var(--accent); border-top-color:transparent;"></div>
+          <span class="text-sm font-medium" style="color:var(--text-secondary);">Fetching details...</span>
         </div>
 
         <!-- Search Results Grid -->
@@ -199,9 +318,10 @@
           <div id="results-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
             <template x-for="(anime, idx) in searchResults" :key="anime.id || anime.idMal">
               <div @click="selectAnime(anime)"
-                   class="anime-card group bg-zinc-900 border border-zinc-800/60 rounded-xl overflow-hidden cursor-pointer hover:border-zinc-700 transition-all duration-300 flex flex-col">
+                   class="anime-card group overflow-hidden cursor-pointer transition-all duration-300 flex flex-col"
+                   style="background:var(--bg-elev-2); border-radius:10px;">
                 <!-- Cover Image -->
-                <div class="aspect-[3/4] overflow-hidden relative bg-zinc-950">
+                <div class="aspect-[3/4] overflow-hidden relative" style="background:var(--bg-elev-1);">
                   <img :src="anime.coverImage.large || anime.coverImage.medium"
                        :alt="anime.title.english || anime.title.romaji"
                        loading="lazy"
@@ -209,14 +329,16 @@
                        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
                   <div class="absolute top-2 right-2 flex flex-col gap-1">
                     <span x-text="anime.format || 'TV'"
-                          class="px-2 py-0.5 bg-black/70 backdrop-blur rounded text-[10px] font-bold text-indigo-400 uppercase"></span>
+                          class="px-2 py-0.5 backdrop-blur rounded text-[10px] font-bold uppercase"
+                          style="background:rgba(0,0,0,0.7); color:var(--accent);"></span>
                   </div>
                 </div>
                 <!-- Title & info -->
                 <div class="p-2 flex-grow flex flex-col justify-between">
                   <h3 x-text="anime.title.english || anime.title.romaji"
-                      class="text-xs font-semibold line-clamp-2 text-zinc-100 group-hover:text-indigo-400 transition-colors"></h3>
-                  <div class="flex justify-between items-center mt-2 text-[10px] text-zinc-500">
+                      class="text-xs font-semibold line-clamp-2 transition-colors group-hover:text-white"
+                      style="color:var(--text-primary);"></h3>
+                  <div class="flex justify-between items-center mt-2 text-[10px]" style="color:var(--text-muted);">
                     <span x-text="anime.seasonYear || 'N/A'"></span>
                     <span x-text="anime.episodes ? `${anime.episodes} EPS` : 'Airing'"></span>
                   </div>
@@ -225,34 +347,37 @@
             </template>
           </div>
           <!-- No results placeholder -->
-          <div x-show="searchResults.length === 0" class="flex flex-col items-center justify-center py-20 text-zinc-500">
-            <i data-lucide="folder-open" class="w-12 h-12 mb-3 text-zinc-600"></i>
+          <div x-show="searchResults.length === 0" class="flex flex-col items-center justify-center py-20" style="color:var(--text-muted);">
+            <i data-lucide="folder-open" class="w-12 h-12 mb-3" style="color:#333;"></i>
             <span>No anime searched yet or no results found.</span>
           </div>
         </div>
 
         <!-- Playback Panel -->
-        <div x-show="!loading && selectedAnime" class="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex flex-col gap-4">
+        <div x-show="!loading && selectedAnime" class="rounded-xl p-4 flex flex-col gap-4" style="background:var(--bg-elev-1); border:1px solid var(--border-subtle);">
           <!-- Back button / Info header -->
           <div class="flex justify-between items-center">
             <button @click="selectedAnime = null; stopPlayback()"
-                    class="flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors bg-zinc-800/50 hover:bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-700/50">
+                    class="flex items-center gap-2 text-sm transition-colors px-3 py-1.5 rounded-lg"
+                    style="color:var(--text-secondary); background:var(--bg-elev-2);"
+                    onmouseover="this.style.background='var(--bg-hover)'"
+                    onmouseout="this.style.background='var(--bg-elev-2)'">
               <i data-lucide="arrow-left" class="w-4 h-4"></i>
               Back to Search
             </button>
             <div class="text-right">
               <h3 x-text="selectedAnime?.title.english || selectedAnime?.title.romaji"
-                  class="font-bold text-zinc-200 text-sm md:text-base line-clamp-1"></h3>
-              <p class="text-[11px] text-zinc-500" x-text="`Playing Episode ${currentEpisode?.num || 'N/A'}`"></p>
+                  class="font-bold text-sm md:text-base line-clamp-1" style="color:var(--text-primary);"></h3>
+              <p class="text-[11px]" style="color:var(--text-muted);" x-text="`Playing Episode ${currentEpisode?.num || 'N/A'}`"></p>
             </div>
           </div>
 
           <!-- Video Player container -->
           <div class="aspect-video bg-black rounded-lg border border-zinc-800 overflow-hidden relative">
             <!-- Loading Stream overlay -->
-            <div x-show="scraping" class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-3 z-10">
-              <div class="w-10 h-10 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-              <span class="text-zinc-400 text-xs font-semibold uppercase tracking-wider">Resolving direct playback URL...</span>
+            <div x-show="scraping" class="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10" style="background:rgba(0,0,0,0.85);">
+              <div class="w-10 h-10 border-3 rounded-full animate-spin" style="border-color:var(--accent); border-top-color:transparent;"></div>
+              <span class="text-xs font-semibold uppercase tracking-wider" style="color:var(--text-secondary);">Resolving direct playback URL...</span>
             </div>
 
             <!-- Standard Video Element -->
@@ -274,35 +399,44 @@
             <template x-if="streamUrl">
               <div class="flex flex-wrap gap-2 w-full">
                 <button @click="playNative('mpv')"
-                        class="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 border border-zinc-700 text-zinc-200 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
+                        class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                        style="background:var(--bg-elev-2); color:var(--text-primary); border:1px solid var(--border-subtle);"
+                        onmouseover="this.style.background='var(--bg-hover)'"
+                        onmouseout="this.style.background='var(--bg-elev-2)'">
                   <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
                   Play in MPV
                 </button>
                 <button @click="playNative('vlc')"
-                        class="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 border border-zinc-700 text-zinc-200 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">
+                        class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                        style="background:var(--bg-elev-2); color:var(--text-primary); border:1px solid var(--border-subtle);"
+                        onmouseover="this.style.background='var(--bg-hover)'"
+                        onmouseout="this.style.background='var(--bg-elev-2)'">
                   <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
                   Play in VLC
                 </button>
                 <button @click="useIframe = !useIframe"
-                        class="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 border border-zinc-700 text-zinc-200 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ml-auto">
+                        class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ml-auto"
+                        style="background:var(--bg-elev-2); color:var(--text-primary); border:1px solid var(--border-subtle);"
+                        onmouseover="this.style.background='var(--bg-hover)'"
+                        onmouseout="this.style.background='var(--bg-elev-2)'">
                   <i data-lucide="monitor-play" class="w-3.5 h-3.5"></i>
                   <span x-text="useIframe ? 'Switch to Web Player' : 'Switch to Remote Player'"></span>
                 </button>
               </div>
             </template>
             <template x-if="!streamUrl && iframeUrl">
-              <div class="flex justify-between items-center w-full text-xs text-zinc-500">
+              <div class="flex justify-between items-center w-full text-xs" style="color:var(--text-muted);">
                 <span>Scraping failed. Direct streaming offline for this link. Playing via remote embed fallback.</span>
               </div>
             </template>
           </div>
 
           <!-- Referral warnings / Info -->
-          <div x-show="streamReferer" class="bg-indigo-950/20 border border-indigo-900/50 rounded-lg p-3 flex gap-3 text-xs text-indigo-300">
-            <i data-lucide="info" class="w-5 h-5 flex-shrink-0 text-indigo-400"></i>
+          <div x-show="streamReferer" class="rounded-lg p-3 flex gap-3 text-xs" style="background:rgba(245,197,24,0.08); border:1px solid rgba(245,197,24,0.15); color:var(--accent);">
+            <i data-lucide="info" class="w-5 h-5 flex-shrink-0"></i>
             <div>
               <p class="font-medium">Referer Header Required</p>
-              <p class="text-[11px] text-indigo-400/90 mt-0.5">This stream requires <code class="bg-black/40 px-1 py-0.5 rounded text-zinc-200" x-text="streamReferer"></code> referer. If playing fails, make sure your CORS proxy or browser extensions are active.</p>
+              <p class="text-[11px] mt-0.5" style="opacity:0.8;">This stream requires <code class="px-1 py-0.5 rounded" style="background:rgba(0,0,0,0.4); color:var(--text-primary);" x-text="streamReferer"></code> referer. If playing fails, make sure your CORS proxy or browser extensions are active.</p>
             </div>
           </div>
         </div>
@@ -312,47 +446,51 @@
       <!-- Right Area: Episode list / Details pane -->
       <aside x-show="selectedAnime"
              id="details-panel"
-             class="md:w-2/5 bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex flex-col gap-6 max-h-[85vh] overflow-y-auto custom-scroll">
+             class="md:w-2/5 rounded-xl p-4 flex flex-col gap-6 max-h-[85vh] overflow-y-auto custom-scroll"
+             style="background:var(--bg-elev-1); border:1px solid var(--border-subtle);">
         <!-- Anime Banner / Info header -->
-        <div class="relative rounded-lg overflow-hidden h-36 bg-zinc-950 flex-shrink-0">
+        <div class="relative rounded-lg overflow-hidden h-36 flex-shrink-0" style="background:var(--bg-base);">
           <img :src="selectedAnime?.bannerImage || selectedAnime?.coverImage?.large"
                loading="lazy"
                decoding="async"
                class="w-full h-full object-cover opacity-60">
-          <div class="absolute inset-0 bg-gradient-to-t from-zinc-900 to-transparent"></div>
+          <div class="absolute inset-0" style="background:linear-gradient(to top, var(--bg-elev-1), transparent);"></div>
           <div class="absolute bottom-3 left-3 right-3 flex items-end justify-between">
             <h2 x-text="selectedAnime?.title.english || selectedAnime?.title.romaji"
-                class="font-bold text-lg text-white leading-tight drop-shadow-md line-clamp-2"></h2>
+                class="font-bold text-lg leading-tight drop-shadow-md line-clamp-2" style="color:var(--text-primary);"></h2>
           </div>
         </div>
 
         <!-- Description -->
-        <div class="text-xs text-zinc-400 leading-relaxed border-b border-zinc-800 pb-4">
-          <h4 class="font-semibold text-zinc-300 mb-1">Synopsis</h4>
+        <div class="text-xs leading-relaxed pb-4" style="color:var(--text-secondary); border-bottom:1px solid var(--border-subtle);">
+          <h4 class="font-semibold mb-1" style="color:var(--text-primary);">Synopsis</h4>
           <p x-html="selectedAnime?.description || 'No description available.'" class="line-clamp-4 hover:line-clamp-none transition-all duration-300 cursor-pointer"></p>
         </div>
 
         <!-- Scraper options specific to loaded anime -->
-        <div class="border-b border-zinc-800 pb-4">
-          <h4 class="font-semibold text-zinc-300 text-xs uppercase tracking-wider mb-2">Streaming Config</h4>
+        <div class="pb-4" style="border-bottom:1px solid var(--border-subtle);">
+          <h4 class="font-semibold text-xs uppercase tracking-wider mb-2" style="color:var(--text-primary);">Streaming Config</h4>
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <label class="block text-[10px] text-zinc-500 mb-1">Scraper</label>
+              <label class="block text-[10px] mb-1" style="color:var(--text-muted);">Scraper</label>
               <select x-model="selectedScraper"
-                      class="w-full bg-zinc-950 border border-zinc-800 rounded py-1 px-2 text-xs focus:outline-none focus:border-indigo-500">
+                      class="w-full rounded py-1 px-2 text-xs focus:outline-none"
+                      style="background:var(--bg-base); border:1px solid var(--border-subtle); color:var(--text-primary);">
                 <option value="animepahe">AnimePahe (Kiwi)</option>
                 <option value="kickass">KickAss (Hop)</option>
                 <option value="miruro">Miruro (Pipe API)</option>
               </select>
             </div>
             <div>
-              <label class="block text-[10px] text-zinc-500 mb-1">Audio Category</label>
-              <div class="flex bg-zinc-950 border border-zinc-800 rounded p-0.5 text-[11px]">
+              <label class="block text-[10px] mb-1" style="color:var(--text-muted);">Audio Category</label>
+              <div class="flex rounded p-0.5 text-[11px]" style="background:var(--bg-base); border:1px solid var(--border-subtle);">
                 <button @click="isDub = false"
-                        :class="!isDub ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-200'"
+                        :class="!isDub ? 'text-black' : ''"
+                        :style="!isDub ? 'background:var(--accent); color:#000;' : 'color:var(--text-muted);'"
                         class="flex-1 py-0.5 rounded transition-colors text-center font-medium">SUB</button>
                 <button @click="isDub = true"
-                        :class="isDub ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-200'"
+                        :class="isDub ? 'text-black' : ''"
+                        :style="isDub ? 'background:var(--accent); color:#000;' : 'color:var(--text-muted);'"
                         class="flex-1 py-0.5 rounded transition-colors text-center font-medium">DUB</button>
               </div>
             </div>
@@ -362,15 +500,20 @@
         <!-- Episode list -->
         <div class="flex-grow flex flex-col min-h-0">
           <div class="flex justify-between items-center mb-3">
-            <h4 class="font-semibold text-zinc-300 text-xs uppercase tracking-wider">Episodes</h4>
-            <span class="text-[10px] text-zinc-500 font-semibold" x-text="`${episodes.length} Available`"></span>
+            <h4 class="font-semibold text-xs uppercase tracking-wider" style="color:var(--text-primary);">Episodes</h4>
+            <span class="text-[10px] font-semibold" style="color:var(--text-muted);" x-text="`${episodes.length} Available`"></span>
           </div>
 
           <div class="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-4 gap-2 overflow-y-auto custom-scroll pr-1">
             <template x-for="ep in episodes" :key="ep.num || ep.episode_number">
               <button @click="playEpisode(ep)"
-                      :class="currentEpisode?.num === ep.num || currentEpisode?.episode_number === ep.episode_number ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-100'"
-                      class="py-2.5 rounded-lg border text-center font-medium text-sm transition-all focus:outline-none flex flex-col items-center justify-center gap-0.5">
+                      :style="(currentEpisode?.num === ep.num || currentEpisode?.episode_number === ep.episode_number)
+                              ? 'background:var(--accent); border-color:var(--accent); color:#000;'
+                              : 'background:var(--bg-base); border-color:var(--border-subtle); color:var(--text-muted);'"
+                      onmouseover="if(this.style.borderColor !== 'rgb(245, 197, 24)') this.style.color='var(--text-primary)'"
+                      onmouseout="if(this.style.borderColor !== 'rgb(245, 197, 24)') this.style.color='var(--text-muted)'"
+                      class="py-2.5 rounded-lg text-center font-medium text-sm transition-all focus:outline-none flex flex-col items-center justify-center gap-0.5"
+                      style="border-width:1px; border-style:solid;">
                 <span x-text="ep.num || ep.episode_number" class="font-bold"></span>
               </button>
             </template>
@@ -379,6 +522,7 @@
       </aside>
 
     </main>
+    </div><!-- end main-area -->
   </div>
 
   <!-- Script logic for Dashboard -->
@@ -396,6 +540,7 @@
         metaProvider: 'anilist',
         selectedScraper: 'animepahe',
         isDub: false,
+        allowAdult: false,
         corsProxy: 'http://localhost:8000/proxy?url=',
         useIframe: false,
         iframeUrl: '',
