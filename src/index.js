@@ -420,6 +420,92 @@ export const AniList = {
     const results = json?.data?.Page?.media || [];
     if (results.length > 0) setCache(cacheKey, results);
     return results;
+  },
+
+  async recentlyAdded(fetchOptions = {}) {
+    const cacheKey = 'anilist_recent';
+    const cached = getCache(cacheKey);
+    if (cached) return cached;
+
+    const graphqlQuery = `
+      query {
+        Page(page: 1, perPage: 12) {
+          media(sort: START_DATE_DESC, isAdult: false, type: ANIME, status_in: [RELEASING, FINISHED]) {
+            id
+            idMal
+            title { romaji english native }
+            coverImage { large medium }
+            bannerImage
+            status
+            episodes
+            description
+            seasonYear
+            season
+            synonyms
+            format
+            averageScore
+          }
+        }
+      }
+    `;
+
+    const res = await httpFetch('https://graphql.anilist.co/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({ query: graphqlQuery }),
+      ...fetchOptions
+    });
+
+    const json = await res.json();
+    const results = json?.data?.Page?.media || [];
+    if (results.length > 0) setCache(cacheKey, results);
+    return results;
+  },
+
+  async topRated(fetchOptions = {}) {
+    const cacheKey = 'anilist_toprated';
+    const cached = getCache(cacheKey);
+    if (cached) return cached;
+
+    const graphqlQuery = `
+      query {
+        Page(page: 1, perPage: 12) {
+          media(sort: SCORE_DESC, isAdult: false, type: ANIME) {
+            id
+            idMal
+            title { romaji english native }
+            coverImage { large medium }
+            bannerImage
+            status
+            episodes
+            description
+            seasonYear
+            season
+            synonyms
+            format
+            averageScore
+          }
+        }
+      }
+    `;
+
+    const res = await httpFetch('https://graphql.anilist.co/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({ query: graphqlQuery }),
+      ...fetchOptions
+    });
+
+    const json = await res.json();
+    const results = json?.data?.Page?.media || [];
+    if (results.length > 0) setCache(cacheKey, results);
+    return results;
   }
 };
 

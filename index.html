@@ -322,6 +322,108 @@
       padding: 0;
     }
     .hero-dots button.on { background: var(--accent); width: 20px; border-radius: 999px; }
+    /* Content rows */
+    .content-row { margin-bottom: 36px; }
+    .row-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .row-header h3 {
+      font-size: 17px;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: -0.2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .row-header h3 i { color: var(--accent); width: 18px; height: 18px; }
+    .row-scroll {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      scroll-behavior: smooth;
+      padding-bottom: 8px;
+      scrollbar-width: thin;
+      scrollbar-color: #2a2a2a transparent;
+    }
+    .row-scroll::-webkit-scrollbar { height: 5px; }
+    .row-scroll::-webkit-scrollbar-track { background: transparent; }
+    .row-scroll::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+    .poster-card {
+      flex: 0 0 auto;
+      width: 150px;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+    .poster-card:hover { transform: translateY(-4px); }
+    .poster-card .poster-wrap {
+      position: relative;
+      aspect-ratio: 3/4;
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--bg-elev-2);
+    }
+    .poster-card img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transition: transform 0.4s ease;
+    }
+    .poster-card:hover img { transform: scale(1.06); }
+    .poster-card .score-badge {
+      position: absolute;
+      top: 8px; left: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(4px);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 7px;
+      border-radius: 6px;
+    }
+    .poster-card .hover-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .poster-card:hover .hover-overlay { opacity: 1; }
+    .poster-card .hover-overlay .play-btn {
+      width: 44px; height: 44px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #000;
+    }
+    .poster-card .card-title {
+      margin-top: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.35;
+      color: var(--text-primary);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .poster-card .card-meta {
+      margin-top: 3px;
+      font-size: 10px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
   </style>
 
   <!-- JS Libraries (CDN) -->
@@ -489,7 +591,77 @@
         </div>
       </section>
 
-      <!-- Content below hero -->
+      <!-- Content Rows (home view) -->
+      <div x-show="!loading && !selectedAnime && searchResults.length === 0" class="content-row" x-cloak>
+        <div class="row-header">
+          <h3><i data-lucide="flame"></i>Trending Now</h3>
+          <span style="font-size:11px; color:var(--text-muted);" x-text="`${trendingList.length} titles`"></span>
+        </div>
+        <div class="row-scroll">
+          <template x-for="anime in trendingList" :key="`row-t-${anime.id}`">
+            <div class="poster-card" @click="selectAnime(anime)">
+              <div class="poster-wrap">
+                <img :src="anime.coverImage.large || anime.coverImage.medium" loading="lazy" decoding="async" :alt="anime.title.english || anime.title.romaji">
+                <span class="score-badge" x-show="anime.averageScore"><i data-lucide="star" style="width:10px;height:10px;"></i><span x-text="(anime.averageScore/10).toFixed(1)"></span></span>
+                <div class="hover-overlay"><div class="play-btn"><i data-lucide="play" style="width:18px;height:18px;"></i></div></div>
+              </div>
+              <div class="card-title" x-text="anime.title.english || anime.title.romaji"></div>
+              <div class="card-meta">
+                <span x-text="anime.seasonYear || ''"></span>
+                <span x-text="anime.format || 'TV'"></span>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div x-show="!loading && !selectedAnime && searchResults.length === 0" class="content-row" x-cloak>
+        <div class="row-header">
+          <h3><i data-lucide="sparkles"></i>Recently Added</h3>
+          <span style="font-size:11px; color:var(--text-muted);" x-text="`${recentList.length} titles`"></span>
+        </div>
+        <div class="row-scroll">
+          <template x-for="anime in recentList" :key="`row-r-${anime.id}`">
+            <div class="poster-card" @click="selectAnime(anime)">
+              <div class="poster-wrap">
+                <img :src="anime.coverImage.large || anime.coverImage.medium" loading="lazy" decoding="async" :alt="anime.title.english || anime.title.romaji">
+                <span class="score-badge" x-show="anime.averageScore"><i data-lucide="star" style="width:10px;height:10px;"></i><span x-text="(anime.averageScore/10).toFixed(1)"></span></span>
+                <div class="hover-overlay"><div class="play-btn"><i data-lucide="play" style="width:18px;height:18px;"></i></div></div>
+              </div>
+              <div class="card-title" x-text="anime.title.english || anime.title.romaji"></div>
+              <div class="card-meta">
+                <span x-text="anime.seasonYear || ''"></span>
+                <span x-text="anime.format || 'TV'"></span>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div x-show="!loading && !selectedAnime && searchResults.length === 0" class="content-row" x-cloak>
+        <div class="row-header">
+          <h3><i data-lucide="trophy"></i>Top Rated</h3>
+          <span style="font-size:11px; color:var(--text-muted);" x-text="`${topRatedList.length} titles`"></span>
+        </div>
+        <div class="row-scroll">
+          <template x-for="anime in topRatedList" :key="`row-p-${anime.id}`">
+            <div class="poster-card" @click="selectAnime(anime)">
+              <div class="poster-wrap">
+                <img :src="anime.coverImage.large || anime.coverImage.medium" loading="lazy" decoding="async" :alt="anime.title.english || anime.title.romaji">
+                <span class="score-badge" x-show="anime.averageScore"><i data-lucide="star" style="width:10px;height:10px;"></i><span x-text="(anime.averageScore/10).toFixed(1)"></span></span>
+                <div class="hover-overlay"><div class="play-btn"><i data-lucide="play" style="width:18px;height:18px;"></i></div></div>
+              </div>
+              <div class="card-title" x-text="anime.title.english || anime.title.romaji"></div>
+              <div class="card-meta">
+                <span x-text="anime.seasonYear || ''"></span>
+                <span x-text="anime.format || 'TV'"></span>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Content below hero (search results / playback) -->
       <div class="flex flex-col md:flex-row gap-6">
 
       <!-- Left Area: Search Results Grid / Details panel -->
@@ -738,6 +910,8 @@
         // Data states
         searchResults: [],
         trendingList: [],
+        recentList: [],
+        topRatedList: [],
         heroIndex: 0,
         heroTimer: null,
         selectedAnime: null,
@@ -754,8 +928,10 @@
           // Initialize lucide icons
           setTimeout(() => lucide.createIcons(), 100);
 
-          // Load trending for hero carousel
+          // Load trending for hero carousel and content rows
           this.loadTrending();
+          this.loadRecent();
+          this.loadTopRated();
 
           // Watch scraper change to refetch episodes if necessary
           this.$watch('selectedScraper', async () => {
@@ -777,6 +953,24 @@
             this.$nextTick(() => lucide.createIcons());
           } catch (err) {
             console.warn('Trending load failed:', err.message);
+          }
+        },
+
+        async loadRecent() {
+          try {
+            this.recentList = await window.M3Scrape.metadata.AniList.recentlyAdded({ fetch: this.customFetchWrapper.bind(this) });
+            this.$nextTick(() => lucide.createIcons());
+          } catch (err) {
+            console.warn('Recently added load failed:', err.message);
+          }
+        },
+
+        async loadTopRated() {
+          try {
+            this.topRatedList = await window.M3Scrape.metadata.AniList.topRated({ fetch: this.customFetchWrapper.bind(this) });
+            this.$nextTick(() => lucide.createIcons());
+          } catch (err) {
+            console.warn('Top rated load failed:', err.message);
           }
         },
 
