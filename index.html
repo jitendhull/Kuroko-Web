@@ -424,6 +424,127 @@
       display: flex;
       justify-content: space-between;
     }
+    /* Detail modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(6px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .modal-card {
+      width: 100%;
+      max-width: 920px;
+      max-height: 88vh;
+      overflow-y: auto;
+      border-radius: 16px;
+      background: var(--bg-elev-1);
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 24px 60px rgba(0,0,0,0.7);
+    }
+    .modal-hero {
+      position: relative;
+      height: 260px;
+      overflow: hidden;
+    }
+    .modal-hero img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      opacity: 0.5;
+    }
+    .modal-hero .modal-hero-fade {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, var(--bg-elev-1) 5%, transparent);
+    }
+    .modal-hero .modal-close {
+      position: absolute;
+      top: 14px; right: 14px;
+      width: 34px; height: 34px;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(4px);
+      border: none;
+      border-radius: 50%;
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+      transition: background 0.15s;
+    }
+    .modal-hero .modal-close:hover { background: rgba(0,0,0,0.85); }
+    .modal-body { padding: 20px 28px 28px; margin-top: -60px; position: relative; z-index: 2; }
+    .modal-title-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 10px;
+    }
+    .modal-title-row h2 {
+      font-size: 26px;
+      font-weight: 800;
+      margin: 0;
+      line-height: 1.15;
+      letter-spacing: -0.4px;
+    }
+    .modal-meta {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .modal-meta .chip {
+      background: var(--bg-elev-2);
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .modal-synopsis {
+      font-size: 13px;
+      line-height: 1.65;
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+    }
+    .modal-actions { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+    .modal-section-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+    .modal-episodes {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+      gap: 8px;
+    }
+    .modal-episodes button {
+      padding: 10px 0;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-elev-2);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .modal-episodes button:hover { border-color: var(--accent); color: var(--accent); }
+    .modal-episodes button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #000;
+    }
   </style>
 
   <!-- JS Libraries (CDN) -->
@@ -574,7 +695,7 @@
                   <i data-lucide="play" style="width:15px;height:15px;"></i>
                   Watch Now
                 </button>
-                <button class="btn-secondary" @click="selectAnime(anime)">
+                <button class="btn-secondary" @click="openModal(anime)">
                   <i data-lucide="info" style="width:15px;height:15px;"></i>
                   View Details
                 </button>
@@ -599,7 +720,7 @@
         </div>
         <div class="row-scroll">
           <template x-for="anime in trendingList" :key="`row-t-${anime.id}`">
-            <div class="poster-card" @click="selectAnime(anime)">
+            <div class="poster-card" @click="openModal(anime)">
               <div class="poster-wrap">
                 <img :src="anime.coverImage.large || anime.coverImage.medium" loading="lazy" decoding="async" :alt="anime.title.english || anime.title.romaji">
                 <span class="score-badge" x-show="anime.averageScore"><i data-lucide="star" style="width:10px;height:10px;"></i><span x-text="(anime.averageScore/10).toFixed(1)"></span></span>
@@ -622,7 +743,7 @@
         </div>
         <div class="row-scroll">
           <template x-for="anime in recentList" :key="`row-r-${anime.id}`">
-            <div class="poster-card" @click="selectAnime(anime)">
+            <div class="poster-card" @click="openModal(anime)">
               <div class="poster-wrap">
                 <img :src="anime.coverImage.large || anime.coverImage.medium" loading="lazy" decoding="async" :alt="anime.title.english || anime.title.romaji">
                 <span class="score-badge" x-show="anime.averageScore"><i data-lucide="star" style="width:10px;height:10px;"></i><span x-text="(anime.averageScore/10).toFixed(1)"></span></span>
@@ -645,7 +766,7 @@
         </div>
         <div class="row-scroll">
           <template x-for="anime in topRatedList" :key="`row-p-${anime.id}`">
-            <div class="poster-card" @click="selectAnime(anime)">
+            <div class="poster-card" @click="openModal(anime)">
               <div class="poster-wrap">
                 <img :src="anime.coverImage.large || anime.coverImage.medium" loading="lazy" decoding="async" :alt="anime.title.english || anime.title.romaji">
                 <span class="score-badge" x-show="anime.averageScore"><i data-lucide="star" style="width:10px;height:10px;"></i><span x-text="(anime.averageScore/10).toFixed(1)"></span></span>
@@ -885,6 +1006,53 @@
       </div><!-- end content row -->
     </main>
     </div><!-- end main-area -->
+
+    <!-- Detail Modal -->
+    <div x-show="showModal" x-cloak class="modal-backdrop" @click.self="closeModal()" @keydown.escape.window="closeModal()">
+      <div class="modal-card">
+        <div class="modal-hero">
+          <img :src="modalAnime?.bannerImage || modalAnime?.coverImage?.large" :alt="modalAnime?.title?.english || ''">
+          <div class="modal-hero-fade"></div>
+          <button class="modal-close" @click="closeModal()"><i data-lucide="x" style="width:18px;height:18px;"></i></button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-title-row">
+            <h2 x-text="modalAnime?.title?.english || modalAnime?.title?.romaji"></h2>
+          </div>
+          <div class="modal-meta">
+            <span class="chip" x-text="modalAnime?.format || 'TV'"></span>
+            <span class="chip" x-text="modalAnime?.seasonYear || 'N/A'"></span>
+            <span class="chip" x-show="modalAnime?.episodes" x-text="`${modalAnime?.episodes} episodes`"></span>
+            <span style="display:inline-flex; align-items:center; gap:4px; color:var(--accent); font-weight:700;" x-show="modalAnime?.averageScore">
+              <i data-lucide="star" style="width:13px;height:13px;"></i>
+              <span x-text="(modalAnime?.averageScore / 10).toFixed(1)"></span>
+            </span>
+          </div>
+          <p class="modal-synopsis" x-html="modalAnime?.description || 'No description available.'"></p>
+          <div class="modal-actions">
+            <button class="btn-primary" @click="playFromModal()">
+              <i data-lucide="play" style="width:15px;height:15px;"></i>
+              Watch Now
+            </button>
+            <button class="btn-secondary" @click="closeModal(); selectAnime(modalAnime)">
+              <i data-lucide="list-video" style="width:15px;height:15px;"></i>
+              Open Player View
+            </button>
+          </div>
+          <h4 class="modal-section-title">Episodes</h4>
+          <div class="modal-episodes" x-show="episodes.length > 0">
+            <template x-for="ep in episodes" :key="`m-${ep.num || ep.episode_number}`">
+              <button @click="playFromModal(ep)"
+                      :class="{ active: currentEpisode && (currentEpisode.num === ep.num || currentEpisode.episode_number === ep.episode_number) }"
+                      x-text="ep.num || ep.episode_number"></button>
+            </template>
+          </div>
+          <p x-show="episodes.length === 0" style="font-size:12px; color:var(--text-muted);">
+            No episodes loaded yet.
+          </p>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Script logic for Dashboard -->
@@ -915,6 +1083,8 @@
         heroIndex: 0,
         heroTimer: null,
         selectedAnime: null,
+        showModal: false,
+        modalAnime: null,
         episodes: [],
         currentEpisode: null,
         streamUrl: '',
@@ -994,6 +1164,33 @@
         goHero(i) {
           this.heroIndex = i;
           this.startHeroTimer();
+        },
+
+        openModal(animeObj) {
+          this.modalAnime = animeObj;
+          this.showModal = true;
+          clearInterval(this.heroTimer);
+          this.selectedAnime = animeObj;
+          this.episodes = [];
+          this.currentEpisode = null;
+          this.stopPlayback();
+          this.fetchEpisodes().then(() => this.$nextTick(() => lucide.createIcons()));
+        },
+
+        closeModal() {
+          this.showModal = false;
+          if (!this.currentEpisode) {
+            this.selectedAnime = null;
+            this.startHeroTimer();
+          }
+          this.$nextTick(() => lucide.createIcons());
+        },
+
+        playFromModal(epObj = null) {
+          const ep = epObj || this.episodes[0];
+          if (!ep) return;
+          this.closeModal();
+          this.playEpisode(ep);
         },
 
         async search() {
