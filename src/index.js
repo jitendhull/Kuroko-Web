@@ -465,15 +465,18 @@ export const AniList = {
     return results;
   },
 
-  async topRated(fetchOptions = {}) {
-    const cacheKey = 'anilist_toprated';
+  async topRated(opts = {}, fetchOptions = {}) {
+    const sort = opts.sort || 'SCORE_DESC';
+    const statusIn = opts.statusIn || null;
+    const format = opts.format || null;
+    const cacheKey = `anilist_toprated_${sort}_${statusIn ? statusIn.join('_') : 'all'}_${format || 'any'}`;
     const cached = getCache(cacheKey);
     if (cached) return cached;
 
     const graphqlQuery = `
-      query {
+      query ($sort: [MediaSort], $statusIn: [MediaStatus], $format: MediaFormat) {
         Page(page: 1, perPage: 12) {
-          media(sort: SCORE_DESC, isAdult: false, type: ANIME) {
+          media(sort: $sort, isAdult: false, type: ANIME, status_in: $statusIn, format: $format) {
             id
             idMal
             title { romaji english native }
@@ -492,13 +495,18 @@ export const AniList = {
       }
     `;
 
+    // ponytail: strip null vars — AniList 500s on some explicit-null inputs
+    const variables = Object.fromEntries(
+      Object.entries({ sort: [sort], statusIn, format }).filter(([, v]) => v != null)
+    );
+
     const res = await httpFetch('https://graphql.anilist.co/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      body: JSON.stringify({ query: graphqlQuery }),
+      body: JSON.stringify({ query: graphqlQuery, variables }),
       ...fetchOptions
     });
 

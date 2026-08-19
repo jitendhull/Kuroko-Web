@@ -764,7 +764,15 @@
       <div x-show="!loading && !selectedAnime && searchResults.length === 0" class="content-row" x-cloak>
         <div class="row-header">
           <h3><i data-lucide="trophy"></i>Top Rated</h3>
-          <span style="font-size:11px; color:var(--text-muted);" x-text="`${topRatedList.length} titles`"></span>
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <template x-for="cat in topRatedCategories" :key="cat.key">
+              <button @click="topRatedCategory = cat.key"
+                      :style="topRatedCategory === cat.key ? 'background:var(--accent); color:#000;' : 'background:var(--bg-elev-2); color:var(--text-secondary);'"
+                      class="px-2.5 py-1 rounded-full text-[10px] font-bold transition-colors"
+                      x-text="cat.label"></button>
+            </template>
+            <span style="font-size:11px; color:var(--text-muted); margin-left:4px;" x-text="`${topRatedList.length}`"></span>
+          </div>
         </div>
         <div class="row-scroll">
           <template x-for="anime in topRatedList" :key="`row-p-${anime.id}`">
@@ -798,7 +806,7 @@
 
         <!-- Search Results Grid -->
         <div x-show="!loading && !selectedAnime" class="flex-grow">
-          <h2 class="text-lg font-bold text-zinc-300 mb-4" x-text="searchQuery ? `Search Results for '${searchQuery}'` : 'Trending / Recommended'"></h2>
+          <h2 x-show="searchQuery" class="text-lg font-bold text-zinc-300 mb-4" x-text="`Search Results for '${searchQuery}'`"></h2>
           <div id="results-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
             <template x-for="(anime, idx) in searchResults" :key="anime.id || anime.idMal">
               <div @click="selectAnime(anime)"
@@ -1082,6 +1090,14 @@
         trendingList: [],
         recentList: [],
         topRatedList: [],
+        topRatedCategory: 'all',
+        topRatedCategories: [
+          { key: 'all', label: 'All Time' },
+          { key: 'airing', label: 'Airing' },
+          { key: 'upcoming', label: 'Upcoming' },
+          { key: 'movies', label: 'Movies' },
+          { key: 'popular', label: 'Popular' }
+        ],
         heroIndex: 0,
         heroTimer: null,
         selectedAnime: null,
@@ -1116,6 +1132,7 @@
               await this.fetchEpisodes();
             }
           });
+          this.$watch('topRatedCategory', () => this.loadTopRated());
         },
 
         // Wait until the ESM core (window.M3Scrape) has loaded — module scripts
@@ -1151,7 +1168,15 @@
         async loadTopRated() {
           try {
             await this.m3Ready();
-            this.topRatedList = await window.M3Scrape.metadata.AniList.topRated({ fetch: this.customFetchWrapper.bind(this) });
+            const cat = this.topRatedCategory;
+            const opts = {
+              all:      { sort: 'SCORE_DESC' },
+              airing:   { sort: 'SCORE_DESC', statusIn: ['RELEASING'] },
+              upcoming: { sort: 'POPULARITY_DESC', statusIn: ['NOT_YET_RELEASED'] },
+              movies:   { sort: 'SCORE_DESC', format: 'MOVIE' },
+              popular:  { sort: 'POPULARITY_DESC' }
+            }[cat] || {};
+            this.topRatedList = await window.M3Scrape.metadata.AniList.topRated(opts, { fetch: this.customFetchWrapper.bind(this) });
             this.$nextTick(() => lucide.createIcons());
           } catch (err) {
             console.warn('Top rated load failed:', err.message);
