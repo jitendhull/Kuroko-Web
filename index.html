@@ -31,6 +31,7 @@
       --sidebar-w: 64px;
     }
     * { box-sizing: border-box; }
+    [x-cloak] { display: none !important; }
     html, body {
       margin: 0;
       padding: 0;
@@ -1117,8 +1118,18 @@
           });
         },
 
+        // Wait until the ESM core (window.M3Scrape) has loaded — module scripts
+        // may execute after Alpine initializes, which previously left the home
+        // page blank because loaders failed silently.
+        m3Ready() {
+          return window.M3Scrape
+            ? Promise.resolve()
+            : new Promise(res => window.addEventListener('m3scrape-ready', () => res(), { once: true }));
+        },
+
         async loadTrending() {
           try {
+            await this.m3Ready();
             this.trendingList = await window.M3Scrape.metadata.AniList.trending({ fetch: this.customFetchWrapper.bind(this) });
             this.startHeroTimer();
             this.$nextTick(() => lucide.createIcons());
@@ -1129,6 +1140,7 @@
 
         async loadRecent() {
           try {
+            await this.m3Ready();
             this.recentList = await window.M3Scrape.metadata.AniList.recentlyAdded({ fetch: this.customFetchWrapper.bind(this) });
             this.$nextTick(() => lucide.createIcons());
           } catch (err) {
@@ -1138,6 +1150,7 @@
 
         async loadTopRated() {
           try {
+            await this.m3Ready();
             this.topRatedList = await window.M3Scrape.metadata.AniList.topRated({ fetch: this.customFetchWrapper.bind(this) });
             this.$nextTick(() => lucide.createIcons());
           } catch (err) {
