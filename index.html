@@ -579,7 +579,7 @@
       <div class="brand">K</div>
       <nav>
         <button :class="{ active: activeNav === 'home' }" title="Home" @click="goHome()"><i data-lucide="home"></i></button>
-        <button :class="{ active: activeNav === 'search' }" title="Search" @click="focusSearch()"><i data-lucide="search"></i></button>
+        <button :class="{ active: activeNav === 'discover' }" title="Search" @click="openDiscover()"><i data-lucide="search"></i></button>
         <button title="Trending" @click="goHome(); $nextTick(() => document.querySelector('.hero').scrollIntoView({ behavior: 'smooth' }))"><i data-lucide="flame"></i></button>
         <button title="Watchlist"><i data-lucide="bookmark"></i></button>
         <button title="Favorites"><i data-lucide="heart"></i></button>
@@ -598,7 +598,7 @@
         <i data-lucide="search"></i>
         <input id="search-input" type="text"
                x-model="searchQuery"
-               @keyup.enter="search(); activeNav = 'search'"
+               @keyup.enter="openDiscover(searchQuery)"
                placeholder="Search anime...">
       </div>
       <div style="display:flex; align-items:center; gap:12px;">
@@ -673,6 +673,118 @@
 
     <!-- Main Content Area -->
     <main class="p-8 pt-4">
+
+      <!-- Discover / Search Page -->
+      <section x-show="activeNav === 'discover'" class="mb-8" x-cloak>
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <h2 class="text-xl font-bold" style="color:var(--text-primary);">
+            <span x-text="discoverQuery ? `Results for '${discoverQuery}'` : 'Discover Anime'"></span>
+            <span style="font-size:12px; color:var(--text-muted); font-weight:500;" x-text="`  ${discoverResults.length} titles`"></span>
+          </h2>
+          <button @click="goHome()" class="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg transition-colors"
+                  style="color:var(--text-secondary); background:var(--bg-elev-2);">Back to Home</button>
+        </div>
+
+        <!-- Filters -->
+        <div class="flex flex-wrap items-center gap-4 mb-6 p-4 rounded-xl" style="background:var(--bg-elev-1); border:1px solid var(--border-subtle);">
+          <!-- Genres (multi-select) -->
+          <div>
+            <label class="block text-[10px] uppercase tracking-wider mb-1.5" style="color:var(--text-muted);">Genres</label>
+            <div class="flex flex-wrap gap-1.5 max-w-md">
+              <template x-for="g in discoverGenresList" :key="g">
+                <button @click="toggleGenre(g)"
+                        :style="discoverFilters.genres.includes(g) ? 'background:var(--accent); color:#000;' : 'background:var(--bg-elev-2); color:var(--text-secondary);'"
+                        class="px-2.5 py-1 rounded-full text-[10px] font-bold transition-colors" x-text="g"></button>
+              </template>
+            </div>
+          </div>
+          <!-- Format -->
+          <div>
+            <label class="block text-[10px] uppercase tracking-wider mb-1.5" style="color:var(--text-muted);">Format</label>
+            <select x-model="discoverFilters.format" @change="runDiscover()"
+                    class="rounded-lg py-1.5 px-3 text-xs focus:outline-none"
+                    style="background:var(--bg-elev-2); border:1px solid var(--border-subtle); color:var(--text-primary);">
+              <option value="">Any</option>
+              <option value="TV">TV</option>
+              <option value="TV_SHORT">TV Short</option>
+              <option value="MOVIE">Movie</option>
+              <option value="OVA">OVA</option>
+              <option value="ONA">ONA</option>
+              <option value="SPECIAL">Special</option>
+            </select>
+          </div>
+          <!-- Status -->
+          <div>
+            <label class="block text-[10px] uppercase tracking-wider mb-1.5" style="color:var(--text-muted);">Status</label>
+            <select x-model="discoverFilters.status" @change="runDiscover()"
+                    class="rounded-lg py-1.5 px-3 text-xs focus:outline-none"
+                    style="background:var(--bg-elev-2); border:1px solid var(--border-subtle); color:var(--text-primary);">
+              <option value="">Any</option>
+              <option value="RELEASING">Airing</option>
+              <option value="FINISHED">Completed</option>
+              <option value="NOT_YET_RELEASED">Upcoming</option>
+              <option value="HIATUS">Hiatus</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+          </div>
+          <!-- Sort -->
+          <div>
+            <label class="block text-[10px] uppercase tracking-wider mb-1.5" style="color:var(--text-muted);">Sort By</label>
+            <select x-model="discoverFilters.sort" @change="runDiscover()"
+                    class="rounded-lg py-1.5 px-3 text-xs focus:outline-none"
+                    style="background:var(--bg-elev-2); border:1px solid var(--border-subtle); color:var(--text-primary);">
+              <option value="SEARCH_MATCH">Relevance</option>
+              <option value="POPULARITY_DESC">Popularity</option>
+              <option value="SCORE_DESC">Rating</option>
+              <option value="START_DATE_DESC">Newest</option>
+              <option value="TRENDING_DESC">Trending</option>
+            </select>
+          </div>
+          <!-- Clear filters -->
+          <button @click="clearDiscoverFilters()" class="self-end text-xs px-3 py-1.5 rounded-lg transition-colors"
+                  style="background:var(--bg-elev-2); color:var(--text-muted);">Clear Filters</button>
+        </div>
+
+        <!-- Results grid -->
+        <div x-show="!discoverLoading" id="discover-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+          <template x-for="anime in discoverResults" :key="`d-${anime.id || anime.idMal}`">
+            <div @click="selectAnime(anime)"
+                 class="anime-card group overflow-hidden cursor-pointer transition-all duration-300 flex flex-col"
+                 style="background:var(--bg-elev-2); border-radius:10px;">
+              <div class="aspect-[3/4] overflow-hidden relative" style="background:var(--bg-elev-1);">
+                <img :src="anime.coverImage.large || anime.coverImage.medium"
+                     :alt="anime.title.english || anime.title.romaji"
+                     loading="lazy" decoding="async"
+                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                <div class="absolute top-2 right-2 flex flex-col gap-1">
+                  <span x-text="anime.format || 'TV'"
+                        class="px-2 py-0.5 backdrop-blur rounded text-[10px] font-bold uppercase"
+                        style="background:rgba(0,0,0,0.7); color:var(--accent);"></span>
+                </div>
+              </div>
+              <div class="p-2 flex-grow flex flex-col justify-between">
+                <h3 x-text="anime.title.english || anime.title.romaji"
+                    class="text-xs font-semibold line-clamp-2 transition-colors group-hover:text-white"
+                    style="color:var(--text-primary);"></h3>
+                <div class="flex justify-between items-center mt-2 text-[10px]" style="color:var(--text-muted);">
+                  <span x-text="anime.seasonYear || 'N/A'"></span>
+                  <span x-text="anime.episodes ? `${anime.episodes} EPS` : 'Airing'"></span>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Loading / empty states -->
+        <div x-show="discoverLoading" class="flex flex-col items-center justify-center py-20 gap-4">
+          <div class="w-12 h-12 border-4 rounded-full animate-spin" style="border-color:var(--accent); border-top-color:transparent;"></div>
+          <span class="text-sm font-medium" style="color:var(--text-secondary);">Searching...</span>
+        </div>
+        <div x-show="!discoverLoading && discoverResults.length === 0" class="flex flex-col items-center justify-center py-20" style="color:var(--text-muted);">
+          <i data-lucide="folder-open" class="w-12 h-12 mb-3" style="color:#333;"></i>
+          <span>No results match your filters.</span>
+        </div>
+      </section>
 
       <!-- Hero Carousel (trending) -->
       <section x-show="!loading && !selectedAnime && searchResults.length === 0" class="hero" x-cloak>
@@ -1076,6 +1188,13 @@
         scraping: false,
         activeNav: 'home',
 
+        // Discover page state
+        discoverQuery: '',
+        discoverResults: [],
+        discoverLoading: false,
+        discoverGenresList: ['Action', 'Adventure', 'Comedy', 'Drama', 'Ecchi', 'Fantasy', 'Horror', 'Mahou Shoujo', 'Mecha', 'Music', 'Mystery', 'Psychological', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller'],
+        discoverFilters: { genres: [], format: '', status: '', sort: 'POPULARITY_DESC' },
+
         // Configuration
         searchQuery: '',
         metaProvider: 'anilist',
@@ -1198,11 +1317,48 @@
           window.scrollTo({ top: 0, behavior: 'smooth' });
         },
 
-        // Sidebar: focus the top search bar (integrates sidebar button with header input)
-        focusSearch() {
-          this.activeNav = 'search';
+        // Sidebar: open the full Discover/search page
+        openDiscover(query = null) {
+          this.activeNav = 'discover';
+          if (query !== null) this.discoverQuery = query;
           window.scrollTo({ top: 0, behavior: 'smooth' });
-          this.$nextTick(() => document.getElementById('search-input').focus());
+          this.runDiscover();
+        },
+
+        toggleGenre(g) {
+          const i = this.discoverFilters.genres.indexOf(g);
+          if (i >= 0) this.discoverFilters.genres.splice(i, 1);
+          else this.discoverFilters.genres.push(g);
+          this.runDiscover();
+        },
+
+        clearDiscoverFilters() {
+          this.discoverFilters = { genres: [], format: '', status: '', sort: 'POPULARITY_DESC' };
+          this.runDiscover();
+        },
+
+        async runDiscover() {
+          await this.m3Ready();
+          this.discoverLoading = true;
+          try {
+            if (this.metaProvider === 'anilist') {
+              this.discoverResults = await window.M3Scrape.metadata.AniList.search(this.discoverQuery, {
+                genres: this.discoverFilters.genres,
+                format: this.discoverFilters.format || null,
+                status: this.discoverFilters.status || null,
+                sort: this.discoverFilters.sort
+              }, { fetch: this.customFetchWrapper.bind(this) });
+            } else {
+              // MAL/Jikan fallback ignores advanced filters
+              this.discoverResults = await window.M3Scrape.metadata.MAL.search(this.discoverQuery, { fetch: this.customFetchWrapper.bind(this) });
+            }
+            this.$nextTick(() => lucide.createIcons());
+          } catch (err) {
+            console.error('Discover search failed:', err);
+            this.discoverResults = [];
+          } finally {
+            this.discoverLoading = false;
+          }
         },
 
         startHeroTimer() {
@@ -1265,7 +1421,6 @@
             const client = this.metaProvider === 'anilist' ? window.M3Scrape.metadata.AniList : window.M3Scrape.metadata.MAL;
             results = await client.search(this.searchQuery, { fetch: this.customFetchWrapper.bind(this) });
             this.searchResults = results;
-            this.activeNav = 'search';
             clearInterval(this.heroTimer);
 
             // Trigger enter stagger animation using anime.js

@@ -277,15 +277,20 @@ function encodePipeRequest(path, query) {
  * AniList Metadata GraphQL client
  */
 export const AniList = {
-  async search(query, fetchOptions = {}) {
-    const cacheKey = `anilist_search_${query.toLowerCase().trim()}`;
+  async search(query, opts = {}, fetchOptions = {}) {
+    // ponytail: opts = { genres[], format, status, sort } powering the Discover page filters
+    const genres = (opts.genres && opts.genres.length) ? opts.genres : null;
+    const format = opts.format || null;
+    const status = opts.status || null;
+    const sort = opts.sort || (query ? 'SEARCH_MATCH' : 'POPULARITY_DESC');
+    const cacheKey = `anilist_search_${(query || '').toLowerCase().trim()}_${sort}_${genres ? genres.join('|') : ''}_${format || ''}_${status || ''}`;
     const cached = getCache(cacheKey);
     if (cached) return cached;
 
     const graphqlQuery = `
-      query ($search: String, $page: Int, $perPage: Int) {
+      query ($search: String, $page: Int, $perPage: Int, $genre_in: [String], $format: MediaFormat, $status: MediaStatus, $sort: [MediaSort]) {
         Page(page: $page, perPage: $perPage) {
-          media(sort: SEARCH_MATCH, isAdult: false, type: ANIME, search: $search) {
+          media(sort: $sort, isAdult: false, type: ANIME, search: $search, genre_in: $genre_in, format: $format, status: $status) {
             id
             idMal
             title {
@@ -316,9 +321,13 @@ export const AniList = {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
+      // ponytail: strip null vars — AniList 500s on some explicit-null inputs
       body: JSON.stringify({
         query: graphqlQuery,
-        variables: { search: query, page: 1, perPage: 10 }
+        variables: Object.fromEntries(
+          Object.entries({ search: query || null, page: 1, perPage: 24, genre_in: genres, format, status, sort: [sort] })
+            .filter(([, v]) => v != null)
+        )
       }),
       ...fetchOptions
     });
