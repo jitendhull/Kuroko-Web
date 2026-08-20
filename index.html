@@ -578,9 +578,9 @@
     <aside class="sidebar">
       <div class="brand">K</div>
       <nav>
-        <button class="active" title="Home"><i data-lucide="home"></i></button>
-        <button title="Search"><i data-lucide="search"></i></button>
-        <button title="Trending"><i data-lucide="flame"></i></button>
+        <button :class="{ active: activeNav === 'home' }" title="Home" @click="goHome()"><i data-lucide="home"></i></button>
+        <button :class="{ active: activeNav === 'search' }" title="Search" @click="focusSearch()"><i data-lucide="search"></i></button>
+        <button title="Trending" @click="goHome(); $nextTick(() => document.querySelector('.hero').scrollIntoView({ behavior: 'smooth' }))"><i data-lucide="flame"></i></button>
         <button title="Watchlist"><i data-lucide="bookmark"></i></button>
         <button title="Favorites"><i data-lucide="heart"></i></button>
         <button title="Genres"><i data-lucide="layout-grid"></i></button>
@@ -596,9 +596,9 @@
     <header class="top-bar">
       <div class="search-wrap">
         <i data-lucide="search"></i>
-        <input type="text"
+        <input id="search-input" type="text"
                x-model="searchQuery"
-               @keyup.enter="search()"
+               @keyup.enter="search(); activeNav = 'search'"
                placeholder="Search anime...">
       </div>
       <div style="display:flex; align-items:center; gap:12px;">
@@ -1074,6 +1074,7 @@
         showSettings: false,
         loading: false,
         scraping: false,
+        activeNav: 'home',
 
         // Configuration
         searchQuery: '',
@@ -1183,6 +1184,27 @@
           }
         },
 
+        // Sidebar: return to home view and reset any search/playback state
+        goHome() {
+          this.activeNav = 'home';
+          this.searchQuery = '';
+          this.searchResults = [];
+          this.showModal = false;
+          this.selectedAnime = null;
+          this.episodes = [];
+          this.currentEpisode = null;
+          this.stopPlayback();
+          this.startHeroTimer();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        },
+
+        // Sidebar: focus the top search bar (integrates sidebar button with header input)
+        focusSearch() {
+          this.activeNav = 'search';
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          this.$nextTick(() => document.getElementById('search-input').focus());
+        },
+
         startHeroTimer() {
           clearInterval(this.heroTimer);
           if (this.trendingList.length > 1) {
@@ -1243,6 +1265,7 @@
             const client = this.metaProvider === 'anilist' ? window.M3Scrape.metadata.AniList : window.M3Scrape.metadata.MAL;
             results = await client.search(this.searchQuery, { fetch: this.customFetchWrapper.bind(this) });
             this.searchResults = results;
+            this.activeNav = 'search';
             clearInterval(this.heroTimer);
 
             // Trigger enter stagger animation using anime.js
