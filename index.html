@@ -787,7 +787,7 @@
       </section>
 
       <!-- Hero Carousel (trending) -->
-      <section x-show="!loading && !selectedAnime && searchResults.length === 0" class="hero" x-cloak>
+      <section x-show="activeNav === 'home' && !loading && !selectedAnime" class="hero" x-cloak>
         <template x-for="(anime, i) in trendingList" :key="`hero-${anime.id}`">
           <div class="hero-slide" :class="{ active: heroIndex === i }">
             <img :src="anime.bannerImage || anime.coverImage?.large" class="hero-bg" loading="lazy" decoding="async" :alt="anime.title.english || anime.title.romaji">
@@ -827,7 +827,7 @@
       </section>
 
       <!-- Content Rows (home view) -->
-      <div x-show="!loading && !selectedAnime && searchResults.length === 0" class="content-row" x-cloak>
+      <div x-show="activeNav === 'home' && !loading && !selectedAnime" class="content-row" x-cloak>
         <div class="row-header">
           <h3><i data-lucide="flame"></i>Trending Now</h3>
           <span style="font-size:11px; color:var(--text-muted);" x-text="`${trendingList.length} titles`"></span>
@@ -850,7 +850,7 @@
         </div>
       </div>
 
-      <div x-show="!loading && !selectedAnime && searchResults.length === 0" class="content-row" x-cloak>
+      <div x-show="activeNav === 'home' && !loading && !selectedAnime" class="content-row" x-cloak>
         <div class="row-header">
           <h3><i data-lucide="sparkles"></i>Recently Added</h3>
           <span style="font-size:11px; color:var(--text-muted);" x-text="`${recentList.length} titles`"></span>
@@ -873,7 +873,7 @@
         </div>
       </div>
 
-      <div x-show="!loading && !selectedAnime && searchResults.length === 0" class="content-row" x-cloak>
+      <div x-show="activeNav === 'home' && !loading && !selectedAnime" class="content-row" x-cloak>
         <div class="row-header">
           <h3><i data-lucide="trophy"></i>Top Rated</h3>
           <div class="flex items-center gap-1.5 flex-wrap">
